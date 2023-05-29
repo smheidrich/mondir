@@ -1,0 +1,8 @@
+# honestly not sure if this is a good idea or should just be left out as an
+# option...
+files:
+  {% for data in modules %}
+  - template: template.py
+    data: {{ data }}
+    name: {{ data.name }}.py
+  {% endfor %}

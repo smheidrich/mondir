@@ -83,21 +83,9 @@ class ThisfileExtension(Extension):
         # filter_stream() impl. above
         body = parser.parse_statements(["name:endthisfile"], drop_needle=True)
 
-        return nodes.CallBlock(
-            self.call_method(
-                "_thisfile_support", [assignment_target, source_iterable_expr]
-            ),
-            [],
-            [],
-            body,
-        ).set_lineno(lineno)
-
-    def _thisfile_support(
-        self, assignment_target, source_iterable_expr, caller
-    ):
-        """Helper callback."""
+        # save what we've found
         self.environment.fisyte_thisfile_opts = ThisfileOpts(
             assignment_target, source_iterable_expr
         )
 
-        return caller()  # = body, somehow
+        return body

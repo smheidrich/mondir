@@ -1,8 +1,9 @@
 from jinja2 import Template
 from jinja2.compiler import EvalContext, Frame
-from jinja2_extension import ThisfileExtension  # TODO make pkg
 from jinja2.nodes import For, Const
 from jinja2.idtracking import find_symbols
+
+from fisyte.jinja2_extension import ThisfileExtension
 
 if __name__ == "__main__":
     t = Template(

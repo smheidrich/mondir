@@ -1,9 +1,10 @@
 from dataclasses import dataclass
-from jinja2 import nodes, TemplateSyntaxError
-from jinja2.ext import Extension
-from jinja2.lexer import TokenStream, Token
-from jinja2.nodes import CallBlock, Const, For
 from typing import Iterable
+
+from jinja2 import TemplateSyntaxError, nodes
+from jinja2.ext import Extension
+from jinja2.lexer import Token, TokenStream
+from jinja2.nodes import CallBlock, Const, For, Name, OverlayScope
 
 
 @dataclass
@@ -145,10 +146,15 @@ class ThisfileExtensionPhase2(Extension):
         # wrap file contents in loop if thisfile was used
         opts: ThisfileOpts = self.environment.fisyte_thisfile_opts
         if opts:
+            assignment_target = opts.assignment_target
+            loop_body = [top_level_node]
+            if assignment_target == Const("*"):
+                assignment_target = Name("_fysite_vars", "store")
+                loop_body = [OverlayScope(assignment_target, loop_body)]
             top_level_node = For(
-                opts.assignment_target,
+                assignment_target,
                 opts.source_iterable,
-                [top_level_node],
+                loop_body,
                 None,
                 None,
                 False,

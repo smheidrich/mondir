@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from jinja2 import nodes, TemplateSyntaxError
 from jinja2.ext import Extension
 from jinja2.lexer import TokenStream, Token
-from jinja2.nodes import Const
+from jinja2.nodes import CallBlock, Const, For
 from typing import Iterable
 
 
@@ -89,3 +89,74 @@ class ThisfileExtension(Extension):
         )
 
         return body
+
+
+class ThisfileExtensionPhase2(Extension):
+    tags = {"thisfilefileencl"}
+    priority = 200
+
+    def __init__(self, environment):
+        super().__init__(environment)
+
+        environment.extend(fisyte_outputs=[])
+
+    def filter_stream(self, stream: TokenStream) -> Iterable[Token]:
+        # short preamble to indicate this is not a normal template
+        yield Token(
+            0,
+            "data",
+            "if you see this text, you might be using this library wrong:\n"
+            "as a single template can correspond to multiple output files,\n"
+            "rendering templates as usual doesn't make a lot of sense\n",
+        )
+        # enclose entire file in tags that let us parse it
+        yield Token(
+            0,
+            "block_begin",
+            self.environment.block_start_string,
+        )
+        yield Token(0, "name", "thisfilefileencl")
+        yield Token(0, "block_end", self.environment.block_end_string)
+        for token in stream:
+            yield token
+        yield Token(
+            token.lineno,
+            "block_begin",
+            self.environment.block_start_string,
+        )
+        yield Token(token.lineno, "name", "endthisfilefileencl")
+        yield Token(
+            token.lineno, "block_end", self.environment.block_end_string
+        )
+
+    def parse(self, parser):
+        lineno = next(parser.stream).lineno
+
+        # parse to end
+        body = parser.parse_statements(
+            ["name:endthisfilefileencl"], drop_needle=True
+        )
+
+        # wrap file contents in helper method call
+        top_level_node = CallBlock(
+            self.call_method("_process_file_content"), [], [], body
+        ).set_lineno(lineno)
+
+        # wrap file contents in loop if thisfile was used
+        opts: ThisfileOpts = self.environment.fisyte_thisfile_opts
+        if opts:
+            top_level_node = For(
+                opts.assignment_target,
+                opts.source_iterable,
+                [top_level_node],
+                None,
+                None,
+                False,
+            )
+
+        return top_level_node
+
+    def _process_file_content(self, caller):
+        output = caller()
+        self.environment.fisyte_outputs.append(output)
+        return "----- file: -----\n" + output + "\n"

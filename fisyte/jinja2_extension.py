@@ -7,13 +7,74 @@ from jinja2.lexer import Token, TokenStream
 from jinja2.nodes import CallBlock, Const, For, Name, OverlayScope
 
 
+# TODO move to package of its own and/or Jinja PR to allow this at parser level
+class SelfClosingTagsExtension(Extension):
+    """
+    Base class for extensions with 0-content tags that don't need to be closed.
+
+    All this does is insert a closing tag right after the "opening" one at the
+    token level, so you can parse it as if it was closed with no content.
+
+    Regarding "self-closing" tags:
+
+    Jinja itself has a few such tags built in, e.g. `extends` and `include`,
+    but for some reason doesn't facilitate (easily) writing extensions that
+    introduce new ones...
+
+    Alternative names for such tags (inspired by
+    [what people call them in HTML](https://stackoverflow.com/q/3741896))
+    could be "singleton tags", "empty tags", "void tags" or "standalone tags".
+    """
+
+    def filter_stream(self, stream: TokenStream) -> Iterable[Token]:
+        # we need to manually add closing tags because Jinja's parser throws a
+        # fit otherwise (see todo above)...
+        stream_iter = iter(stream)
+        # this looks more complicated than it is, just because I wanted to make
+        # it look sequential instead of the more typical "single for loop that
+        # handles multiple phases" pattern
+        while True:
+            for token in stream_iter:
+                yield token
+                if token.type == "block_begin":
+                    break
+            else:
+                break
+            assert (tag_name_token := next(stream_iter)).type == "name"
+            yield tag_name_token
+            tag_name = tag_name_token.value
+            if tag_name not in self.tags:
+                continue
+            for token in stream_iter:
+                yield token
+                if token.type == "block_end":
+                    yield Token(
+                        token.lineno,
+                        "block_begin",
+                        self.environment.block_start_string,
+                    )
+                    yield Token(token.lineno, "name", f"end{tag_name}")
+                    yield Token(
+                        token.lineno,
+                        "block_end",
+                        self.environment.block_end_string,
+                    )
+                    break
+            else:
+                break
+            break
+        # remainder
+        for token in stream_iter:
+            yield token
+
+
 @dataclass
 class ThisfileOpts:
     assignment_target: str
     source_iterable: str
 
 
-class ThisfileExtension(Extension):
+class ThisfileExtension(SelfClosingTagsExtension):
     tags = {"thisfile"}
 
     def __init__(self, environment):
@@ -21,32 +82,6 @@ class ThisfileExtension(Extension):
 
         # storage of things we parse from extension blocks
         environment.extend(fisyte_thisfile_opts=None)
-
-    def filter_stream(self, stream: TokenStream) -> Iterable[Token]:
-        # we need to manually add block end tags because we want users to be
-        # able to leave them out for convenience but jinja doesn't like that
-        in_begin_block_tag = False
-        required_fake_block_ends = 0
-        for token in stream:
-            if token.type == "block_begin":
-                in_begin_block_tag = True
-            elif in_begin_block_tag:
-                if token.value == "thisfile":
-                    required_fake_block_ends += 1
-                else:
-                    in_begin_block_tag = False
-            yield token
-        # append fake {% endthisfile %} tags at end of file:
-        for _ in range(required_fake_block_ends):
-            yield Token(
-                token.lineno,
-                "block_begin",
-                self.environment.block_start_string,
-            )
-            yield Token(token.lineno, "name", "endthisfile")
-            yield Token(
-                token.lineno, "block_end", self.environment.block_end_string
-            )
 
     def parse(self, parser):
         # token will be name token with value "thisfile". need to get lineno
@@ -79,9 +114,7 @@ class ThisfileExtension(Extension):
         # above variable values => store in args
         source_iterable_expr = parser.parse_expression()
 
-        # parse up to 'endthisfile' block (because jinja doesn't allow us to
-        # not do this), which is automatically inserted by the custom
-        # filter_stream() impl. above
+        # parse up to closing tag automatically inserted by our base class
         body = parser.parse_statements(["name:endthisfile"], drop_needle=True)
 
         # save what we've found

@@ -25,38 +25,35 @@ class ThisfileExtension(SelfClosingTagsExtension):
         environment.extend(fisyte_thisfile_opts=None)
 
     def parse(self, parser):
-        # token will be name token with value "thisfile". need to get lineno
-        # for subsequent token creation
-        next(parser.stream)
+        (tag,) = list(self.tags)
+
+        # first token is necessarily 'thisfile' tag name, sanity check & skip:
+        parser.stream.expect(f"name:{tag}")
 
         # next token must say "for"
-        tok = next(parser.stream)
-        assert tok.value == "for"
+        parser.stream.expect("name:for")
 
-        # next token must say either "*" or the name of a variable to store
-        # stuff into
+        # next token(s) must be either "*" or an assignment target
         try:
             assignment_target = parser.parse_assign_target()
         except TemplateSyntaxError:
             if parser.stream.current.value != "*":
                 raise TemplateSyntaxError(
                     "expected identifier or * for assignment target after "
-                    "'thisfile for'",
+                    "'{tag} for'",
                     parser.stream.current.lineno,
                 )
             assignment_target = Const("*")
             next(parser.stream)
 
         # next token must say "in"
-        tok = next(parser.stream)
-        assert tok.value == "in"
+        parser.stream.expect("name:in")
 
-        # next token must be the name of an iterable from which to get the
-        # above variable values => store in args
+        # next tokens must be the source iterable for the for loop
         source_iterable_expr = parser.parse_expression()
 
         # parse up to closing tag automatically inserted by our base class
-        body = parser.parse_statements(["name:endthisfile"], drop_needle=True)
+        body = parser.parse_statements([f"name:end{tag}"], drop_needle=True)
 
         # save what we've found
         self.environment.fisyte_thisfile_opts = ThisfileOpts(
@@ -76,7 +73,7 @@ class ThisfileExtensionPhase2(Extension):
         environment.extend(fisyte_outputs=[])
 
     def filter_stream(self, stream: TokenStream) -> Iterable[Token]:
-        (tag_name,) = list(self.tags)
+        (tag,) = list(self.tags)
         # short preamble to indicate this is not a normal template
         yield Token(
             0,
@@ -86,20 +83,19 @@ class ThisfileExtensionPhase2(Extension):
             "rendering templates as usual doesn't make a lot of sense\n",
         )
         # enclose entire file in tags that let us parse it
-        yield from tokens_for_tag(tag_name, 0, self.environment)
+        yield from tokens_for_tag(tag, 0, self.environment)
         for token in stream:
             yield token
-        yield from tokens_for_tag(
-            f"end{tag_name}", token.lineno, self.environment
-        )
+        yield from tokens_for_tag(f"end{tag}", token.lineno, self.environment)
 
     def parse(self, parser):
-        lineno = next(parser.stream).lineno
+        (tag,) = list(self.tags)
+
+        # sanity check & get line number for later
+        lineno = parser.stream.expect(f"name:{tag}").lineno
 
         # parse to end
-        body = parser.parse_statements(
-            ["name:endthisfilefileencl"], drop_needle=True
-        )
+        body = parser.parse_statements([f"name:end{tag}"], drop_needle=True)
 
         # wrap file contents in helper method call
         top_level_node = CallBlock(

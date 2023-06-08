@@ -6,7 +6,7 @@ from jinja2.ext import Extension
 from jinja2.lexer import Token, TokenStream
 from jinja2.nodes import CallBlock, Const, For, Name, OverlayScope
 
-from .utils.jinja2 import SelfClosingTagsExtension
+from .utils.jinja2 import SelfClosingTagsExtension, tokens_for_tag
 
 
 @dataclass
@@ -76,6 +76,7 @@ class ThisfileExtensionPhase2(Extension):
         environment.extend(fisyte_outputs=[])
 
     def filter_stream(self, stream: TokenStream) -> Iterable[Token]:
+        (tag_name,) = list(self.tags)
         # short preamble to indicate this is not a normal template
         yield Token(
             0,
@@ -85,23 +86,11 @@ class ThisfileExtensionPhase2(Extension):
             "rendering templates as usual doesn't make a lot of sense\n",
         )
         # enclose entire file in tags that let us parse it
-        yield Token(
-            0,
-            "block_begin",
-            self.environment.block_start_string,
-        )
-        yield Token(0, "name", "thisfilefileencl")
-        yield Token(0, "block_end", self.environment.block_end_string)
+        yield from tokens_for_tag(tag_name, 0, self.environment)
         for token in stream:
             yield token
-        yield Token(
-            token.lineno,
-            "block_begin",
-            self.environment.block_start_string,
-        )
-        yield Token(token.lineno, "name", "endthisfilefileencl")
-        yield Token(
-            token.lineno, "block_end", self.environment.block_end_string
+        yield from tokens_for_tag(
+            f"end{tag_name}", token.lineno, self.environment
         )
 
     def parse(self, parser):

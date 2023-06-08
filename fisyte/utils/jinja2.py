@@ -1,7 +1,24 @@
-from typing import Iterable
+from collections.abc import Iterable, Sequence
 
+from jinja2 import Environment
 from jinja2.ext import Extension
 from jinja2.lexer import Token, TokenStream
+
+
+def tokens_for_tag(
+    tag_name: str, lineno: int, environment: Environment
+) -> Sequence[Token]:
+    yield Token(
+        lineno,
+        "block_begin",
+        environment.block_start_string,
+    )
+    yield Token(lineno, "name", tag_name)
+    yield Token(
+        lineno,
+        "block_end",
+        environment.block_end_string,
+    )
 
 
 # TODO move to package of its own and/or Jinja PR to allow this at parser level
@@ -45,16 +62,8 @@ class SelfClosingTagsExtension(Extension):
             for token in stream_iter:
                 yield token
                 if token.type == "block_end":
-                    yield Token(
-                        token.lineno,
-                        "block_begin",
-                        self.environment.block_start_string,
-                    )
-                    yield Token(token.lineno, "name", f"end{tag_name}")
-                    yield Token(
-                        token.lineno,
-                        "block_end",
-                        self.environment.block_end_string,
+                    yield from tokens_for_tag(
+                        f"end{tag_name}", token.lineno, self.environment
                     )
                     break
             else:

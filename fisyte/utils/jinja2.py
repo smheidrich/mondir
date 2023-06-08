@@ -1,5 +1,6 @@
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Set
 
+from jaraco.classes.properties import classproperty
 from jinja2 import Environment
 from jinja2.ext import Extension
 from jinja2.lexer import Token, TokenStream
@@ -7,7 +8,7 @@ from jinja2.lexer import Token, TokenStream
 
 def tokens_for_tag(
     tag_name: str, lineno: int, environment: Environment
-) -> Sequence[Token]:
+) -> Iterable[Token]:
     yield Token(
         lineno,
         "block_begin",
@@ -72,3 +73,25 @@ class SelfClosingTagsExtension(Extension):
         # remainder
         for token in stream_iter:
             yield token
+
+
+# insane amount of effort to get around Python having removed class properties
+# again... see https://discuss.python.org/t/18090
+class SingleTagExtension(Extension, metaclass=classproperty.Meta):
+    # must be set by subclasses (can't be abstract because not supported by
+    # 3rd party classproperties lib):
+    @classproperty
+    def tag(cls) -> str:
+        raise NotImplementedError(
+            f"{cls} subclasses must define 'tag' class attribute or property"
+        )
+
+    @classproperty
+    def tags(cls) -> Set[str]:
+        return {cls.tag}
+
+    def tokens_for_own_tag(self, lineno: int):
+        yield from tokens_for_tag(self.tag, lineno, self.environment)
+
+    def tokens_for_own_closing_tag(self, lineno: int):
+        yield from tokens_for_tag(f"end{self.tag}", lineno, self.environment)

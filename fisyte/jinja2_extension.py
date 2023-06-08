@@ -2,11 +2,10 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from jinja2 import TemplateSyntaxError
-from jinja2.ext import Extension
 from jinja2.lexer import Token, TokenStream
 from jinja2.nodes import CallBlock, Const, For, Name, OverlayScope
 
-from .utils.jinja2 import SelfClosingTagsExtension, tokens_for_tag
+from .utils.jinja2 import SelfClosingTagsExtension, SingleTagExtension
 
 
 @dataclass
@@ -15,8 +14,8 @@ class ThisfileOpts:
     source_iterable: str
 
 
-class ThisfileExtension(SelfClosingTagsExtension):
-    tags = {"thisfile"}
+class ThisfileExtension(SelfClosingTagsExtension, SingleTagExtension):
+    tag = "thisfile"
 
     def __init__(self, environment):
         super().__init__(environment)
@@ -25,10 +24,8 @@ class ThisfileExtension(SelfClosingTagsExtension):
         environment.extend(fisyte_thisfile_opts=None)
 
     def parse(self, parser):
-        (tag,) = list(self.tags)
-
         # first token is necessarily 'thisfile' tag name, sanity check & skip:
-        parser.stream.expect(f"name:{tag}")
+        parser.stream.expect(f"name:{self.tag}")
 
         # next token must say "for"
         parser.stream.expect("name:for")
@@ -53,7 +50,9 @@ class ThisfileExtension(SelfClosingTagsExtension):
         source_iterable_expr = parser.parse_expression()
 
         # parse up to closing tag automatically inserted by our base class
-        body = parser.parse_statements([f"name:end{tag}"], drop_needle=True)
+        body = parser.parse_statements(
+            (f"name:end{self.tag}",), drop_needle=True
+        )
 
         # save what we've found
         self.environment.fisyte_thisfile_opts = ThisfileOpts(
@@ -63,8 +62,8 @@ class ThisfileExtension(SelfClosingTagsExtension):
         return body
 
 
-class ThisfileExtensionPhase2(Extension):
-    tags = {"thisfilefileencl"}
+class ThisfileExtensionPhase2(SingleTagExtension):
+    tag = "thisfilefileencl"
     priority = 200
 
     def __init__(self, environment):
@@ -73,7 +72,6 @@ class ThisfileExtensionPhase2(Extension):
         environment.extend(fisyte_outputs=[])
 
     def filter_stream(self, stream: TokenStream) -> Iterable[Token]:
-        (tag,) = list(self.tags)
         # short preamble to indicate this is not a normal template
         yield Token(
             0,
@@ -83,19 +81,19 @@ class ThisfileExtensionPhase2(Extension):
             "rendering templates as usual doesn't make a lot of sense\n",
         )
         # enclose entire file in tags that let us parse it
-        yield from tokens_for_tag(tag, 0, self.environment)
+        yield from self.tokens_for_own_tag(0)
         for token in stream:
             yield token
-        yield from tokens_for_tag(f"end{tag}", token.lineno, self.environment)
+        yield from self.tokens_for_own_closing_tag(token.lineno)
 
     def parse(self, parser):
-        (tag,) = list(self.tags)
-
         # sanity check & get line number for later
-        lineno = parser.stream.expect(f"name:{tag}").lineno
+        lineno = parser.stream.expect(f"name:{self.tag}").lineno
 
         # parse to end
-        body = parser.parse_statements([f"name:end{tag}"], drop_needle=True)
+        body = parser.parse_statements(
+            [f"name:end{self.tag}"], drop_needle=True
+        )
 
         # wrap file contents in helper method call
         top_level_node = CallBlock(

@@ -1,0 +1,5 @@
+[flake8]
+extend-exclude = .*,*venv*
+extend-ignore =
+  # whitespace around colons in slices (black insists on it)
+  E203

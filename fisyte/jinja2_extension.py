@@ -1,29 +1,37 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Iterable
 
-from jinja2 import TemplateSyntaxError
+from jinja2 import Environment, TemplateSyntaxError
 from jinja2.lexer import Token, TokenStream
-from jinja2.nodes import CallBlock, Const, For, Name, OverlayScope
+from jinja2.nodes import CallBlock, Const, For, Name, Node, OverlayScope
+from jinja2.parser import Parser
 
 from .utils.jinja2 import SelfClosingTagsExtension, SingleTagExtension
 
 
 @dataclass
 class ThisfileOpts:
-    assignment_target: str
-    source_iterable: str
+    assignment_target: Node
+    source_iterable: Node | list[Node]
 
 
 class ThisfileExtension(SelfClosingTagsExtension, SingleTagExtension):
     tag = "thisfile"
 
-    def __init__(self, environment):
+    # make Mypy happy:
+    class ExtendedEnvironment(Environment):
+        fisyte_thisfile_opts: ThisfileOpts
+
+    environment: ExtendedEnvironment
+
+    def __init__(self, environment: Environment):
         super().__init__(environment)
 
         # storage of things we parse from extension blocks
         environment.extend(fisyte_thisfile_opts=None)
 
-    def parse(self, parser):
+    def parse(self, parser: Parser) -> Node | list[Node]:
         # first token is necessarily 'thisfile' tag name, sanity check & skip:
         parser.stream.expect(f"name:{self.tag}")
 
@@ -31,6 +39,7 @@ class ThisfileExtension(SelfClosingTagsExtension, SingleTagExtension):
         parser.stream.expect("name:for")
 
         # next token(s) must be either "*" or an assignment target
+        assignment_target: Node
         try:
             assignment_target = parser.parse_assign_target()
         except TemplateSyntaxError:
@@ -66,7 +75,13 @@ class ThisfileExtensionPhase2(SingleTagExtension):
     tag = "thisfilefileencl"
     priority = 200
 
-    def __init__(self, environment):
+    # make Mypy happy:
+    class ExtendedEnvironment(ThisfileExtension.ExtendedEnvironment):
+        fisyte_outputs: list[str]
+
+    environment: ExtendedEnvironment
+
+    def __init__(self, environment: Environment):
         super().__init__(environment)
 
         environment.extend(fisyte_outputs=[])
@@ -86,13 +101,13 @@ class ThisfileExtensionPhase2(SingleTagExtension):
             yield token
         yield from self.tokens_for_own_closing_tag(token.lineno)
 
-    def parse(self, parser):
+    def parse(self, parser: Parser) -> Node:
         # sanity check & get line number for later
         lineno = parser.stream.expect(f"name:{self.tag}").lineno
 
         # parse to end
         body = parser.parse_statements(
-            [f"name:end{self.tag}"], drop_needle=True
+            (f"name:end{self.tag}",), drop_needle=True
         )
 
         # wrap file contents in helper method call
@@ -119,7 +134,7 @@ class ThisfileExtensionPhase2(SingleTagExtension):
 
         return top_level_node
 
-    def _process_file_content(self, caller):
+    def _process_file_content(self, caller: Callable[..., str]) -> str:
         output = caller()
         self.environment.fisyte_outputs.append(output)
         return "----- file: -----\n" + output + "\n"

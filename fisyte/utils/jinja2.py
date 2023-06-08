@@ -1,6 +1,6 @@
 from collections.abc import Iterable, Set
 
-from jaraco.classes.properties import classproperty
+from jaraco.classes.properties import classproperty  # type: ignore
 from jinja2 import Environment
 from jinja2.ext import Extension
 from jinja2.lexer import Token, TokenStream
@@ -79,12 +79,9 @@ class SelfClosingTagsExtension(Extension):
 # again... see https://discuss.python.org/t/18090
 class SingleTagExtension(Extension, metaclass=classproperty.Meta):
     # must be set by subclasses (can't be abstract because not supported by
-    # 3rd party classproperties lib):
-    @classproperty
-    def tag(cls) -> str:
-        raise NotImplementedError(
-            f"{cls} subclasses must define 'tag' class attribute or property"
-        )
+    # 3rd party classproperties lib, can't be property because Mypy doesn't get
+    # it):
+    tag: str
 
     @classproperty
     def tags(cls) -> Set[str]:

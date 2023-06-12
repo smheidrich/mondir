@@ -1,20 +1,29 @@
 from textwrap import dedent
 
 from jinja2 import Environment, Template
-from jinja2.compiler import EvalContext, Frame
-from jinja2.idtracking import find_symbols
-from jinja2.nodes import Const, Filter, For, Name
+from jinja2.nodes import (
+    Call,
+    CallBlock,
+    ExtensionAttribute,
+    Filter,
+    For,
+    Name,
+    OverlayScope,
+)
 
 from fisyte.jinja2_extension import (
+    DirLevelExtension,
+    DirLevelOpts,
     ThisfileExtension,
     ThisfileExtensionPhase2,
-    ThisfileOpts,
 )
 
 
 def test_jinja2_thisfile_extension():
     # prepare
-    environment = Environment(extensions=[ThisfileExtension])
+    environment = Environment(
+        extensions=[ThisfileExtension, DirLevelExtension]
+    )
     source = (
         "{% for x in i %}{% endfor %}{% thisfile for * in files|reverse %}foo"
     )
@@ -22,16 +31,48 @@ def test_jinja2_thisfile_extension():
     t = environment.from_string(source)
     rendered = t.render()
     # check
-    assert t.environment.fisyte_thisfile_opts == ThisfileOpts(
-        assignment_target=Const("*"),
-        source_iterable=Filter(
-            Name("files", "load"),
-            "reverse",
-            [],
-            [],
-            None,
-            None,
-        ),
+    assert t.environment.fisyte_dirlevel_opts == DirLevelOpts(
+        file_contents_body=[],
+        file_contents_receptacles=[[]],
+        dir_level_body=[
+            For(
+                Name("_fysite_vars", "store"),
+                Filter(
+                    Name("files", "load"),
+                    "reverse",
+                    [],
+                    [],
+                    None,
+                    None,
+                ),
+                [
+                    OverlayScope(
+                        Name("_fysite_vars", "store"),
+                        [
+                            CallBlock(
+                                Call(
+                                    ExtensionAttribute(
+                                        "fisyte.jinja2_extension."
+                                        "ThisfileExtension",
+                                        "_file_contents",
+                                    ),
+                                    [],
+                                    [],
+                                    None,
+                                    None,
+                                ),
+                                [],
+                                [],
+                                [],
+                            )
+                        ],
+                    )
+                ],
+                None,
+                None,
+                False,
+            )
+        ],
     )
     assert rendered == "foo"
 
@@ -39,7 +80,11 @@ def test_jinja2_thisfile_extension():
 def test_jinja2_thisfile_extension_both_phases():
     # prepare
     environment = Environment(
-        extensions=[ThisfileExtension, ThisfileExtensionPhase2]
+        extensions=[
+            ThisfileExtension,
+            ThisfileExtensionPhase2,
+            DirLevelExtension,
+        ]
     )
     source = '{% thisfile for x in ["a", "b"]|reverse %}x: {{x}}'
     # run
@@ -65,7 +110,12 @@ def test_jinja2_thisfile_extension_both_phases_star_assignment():
     source = '{% thisfile for * in [{"x": "a"}, {"x": "b"}] %}x: {{x}}'
     # run
     t = Template(
-        source=source, extensions=[ThisfileExtension, ThisfileExtensionPhase2]
+        source=source,
+        extensions=[
+            ThisfileExtension,
+            ThisfileExtensionPhase2,
+            DirLevelExtension,
+        ],
     )
     rendered = t.render()
     # check

@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable
 
 from jinja2 import Environment, TemplateSyntaxError
@@ -11,25 +11,23 @@ from .utils.jinja2 import SelfClosingTagsExtension, SingleTagExtension
 
 
 @dataclass
-class ThisfileOpts:
-    assignment_target: Node
-    source_iterable: Node | list[Node]
+class DirLevelOpts:
+    file_contents_body: Node | list[Node] = field(default_factory=list)
+    file_contents_receptacles: list[list[Node]] = field(default_factory=list)
+    dir_level_body: list[Node] = field(default_factory=list)
+
+
+# make Mypy happy:
+class ExtendedEnvironment(Environment):
+    fisyte_dirlevel_opts: DirLevelOpts
+    fisyte_outputs: list[str]
 
 
 class ThisfileExtension(SelfClosingTagsExtension, SingleTagExtension):
     tag = "thisfile"
 
     # make Mypy happy:
-    class ExtendedEnvironment(Environment):
-        fisyte_thisfile_opts: ThisfileOpts
-
     environment: ExtendedEnvironment
-
-    def __init__(self, environment: Environment):
-        super().__init__(environment)
-
-        # storage of things we parse from extension blocks
-        environment.extend(fisyte_thisfile_opts=None)
 
     def parse(self, parser: Parser) -> Node | list[Node]:
         # first token is necessarily 'thisfile' tag name, sanity check & skip:
@@ -56,29 +54,81 @@ class ThisfileExtension(SelfClosingTagsExtension, SingleTagExtension):
         parser.stream.expect("name:in")
 
         # next tokens must be the source iterable for the for loop
-        source_iterable_expr = parser.parse_expression()
+        source_iterable = parser.parse_expression()
+        lineno = source_iterable.lineno
 
-        # parse up to closing tag automatically inserted by our base class
+        # parse up to closing tag inserted by our base class (empty)
+        parser.parse_statements((f"name:end{self.tag}",), drop_needle=True)
+
+        # save what we've found as AST subtree that will run the loop with file
+        # contents inside when rendered, but save it outside the template AST
+        # (this method's return value) so that that contains the contents only
+        file_contents_receptacle = []
+        self.environment.fisyte_dirlevel_opts.file_contents_receptacles.append(
+            file_contents_receptacle
+        )
+        file_contents_call_node = CallBlock(
+            self.call_method("_file_contents"),
+            [],
+            [],
+            file_contents_receptacle,
+        ).set_lineno(lineno)
+        loop_body = [file_contents_call_node]
+        if assignment_target == Const("*"):
+            assignment_target = Name("_fysite_vars", "store")
+            loop_body = [OverlayScope(assignment_target, loop_body)]
+        self.environment.fisyte_dirlevel_opts.dir_level_body.append(
+            For(
+                assignment_target,
+                source_iterable,
+                loop_body,
+                None,
+                None,
+                False,
+            )
+        )
+
+        return []  # dir-level is separate from file contents at this stage
+
+    def _file_contents(self, caller: Callable[..., str]) -> str:
+        output = caller()
+        self.environment.fisyte_outputs.append(output)
+        return "----- file: -----\n" + output + "\n"
+
+
+class DirLevelExtension(SingleTagExtension):
+    tag = "dirlevel"
+
+    # make Mypy happy:
+    environment: ExtendedEnvironment
+
+    def __init__(self, environment: Environment):
+        super().__init__(environment)
+
+        # storage of things we parse from extension blocks
+        environment.extend(fisyte_dirlevel_opts=DirLevelOpts())
+
+    def parse(self, parser: Parser) -> Node | list[Node]:
+        # first token is always our tag name, just sanity check & get lineno:
+        parser.stream.expect(f"name:{self.tag}")
+
+        # parse body
         body = parser.parse_statements(
             (f"name:end{self.tag}",), drop_needle=True
         )
 
-        # save what we've found
-        self.environment.fisyte_thisfile_opts = ThisfileOpts(
-            assignment_target, source_iterable_expr
-        )
+        # save body for later
+        self.environment.fisyte_dirlevel_opts.dir_level_body.extend(body)
 
-        return body
+        # return nothing at this point, as dirlevel contents are inserted into
+        # the AST at a later stage by ThisfileExtensionPhase2
+        return []
 
 
 class ThisfileExtensionPhase2(SingleTagExtension):
     tag = "thisfilefileencl"
-    priority = 200
 
     # make Mypy happy:
-    class ExtendedEnvironment(ThisfileExtension.ExtendedEnvironment):
-        fisyte_outputs: list[str]
-
     environment: ExtendedEnvironment
 
     def __init__(self, environment: Environment):
@@ -103,38 +153,18 @@ class ThisfileExtensionPhase2(SingleTagExtension):
 
     def parse(self, parser: Parser) -> Node:
         # sanity check & get line number for later
-        lineno = parser.stream.expect(f"name:{self.tag}").lineno
+        parser.stream.expect(f"name:{self.tag}").lineno
 
-        # parse to end
+        # parse to end (contains entire file)
         body = parser.parse_statements(
             (f"name:end{self.tag}",), drop_needle=True
         )
 
-        # wrap file contents in helper method call
-        top_level_node = CallBlock(
-            self.call_method("_process_file_content"), [], [], body
-        ).set_lineno(lineno)
+        # insert this into file contents receptacles
+        for (
+            receptacle
+        ) in self.environment.fisyte_dirlevel_opts.file_contents_receptacles:
+            receptacle.extend(body)
 
-        # wrap file contents in loop if thisfile was used
-        opts: ThisfileOpts = self.environment.fisyte_thisfile_opts
-        if opts:
-            assignment_target = opts.assignment_target
-            loop_body = [top_level_node]
-            if assignment_target == Const("*"):
-                assignment_target = Name("_fysite_vars", "store")
-                loop_body = [OverlayScope(assignment_target, loop_body)]
-            top_level_node = For(
-                assignment_target,
-                opts.source_iterable,
-                loop_body,
-                None,
-                None,
-                False,
-            )
-
-        return top_level_node
-
-    def _process_file_content(self, caller: Callable[..., str]) -> str:
-        output = caller()
-        self.environment.fisyte_outputs.append(output)
-        return "----- file: -----\n" + output + "\n"
+        # re-insert dir-level block in place of regular file contents
+        return self.environment.fisyte_dirlevel_opts.dir_level_body

@@ -32,7 +32,6 @@ def test_jinja2_thisfile_extension():
     rendered = t.render()
     # check
     assert t.environment.fisyte_dirlevel_opts == DirLevelOpts(
-        file_contents_body=[],
         file_contents_receptacles=[[]],
         dir_level_body=[
             For(

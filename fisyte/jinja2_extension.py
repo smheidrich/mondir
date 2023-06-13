@@ -12,7 +12,6 @@ from .utils.jinja2 import SingleTagExtension
 
 @dataclass
 class DirLevelOpts:
-    file_contents_body: Node | list[Node] = field(default_factory=list)
     file_contents_receptacles: list[list[Node]] = field(default_factory=list)
     dir_level_body: list[Node] = field(default_factory=list)
 
@@ -35,7 +34,7 @@ class ThisfileExtension(SingleTagExtension):
 
         # prepare receptacle that will hold the (non-dirlevel) template file
         # contents once we parse them at the end (we don't know them yet)...
-        file_contents_receptacle = []
+        file_contents_receptacle: list[Node] = []
         # ... and a call block node that will contain them => process on render
         file_contents_call_node = CallBlock(
             self.call_method("_file_contents"),
@@ -71,7 +70,7 @@ class ThisfileExtension(SingleTagExtension):
 
     def parse_for(
         self, parser: Parser, file_contents_call_node: CallBlock
-    ) -> Iterable[Node]:
+    ) -> list[Node]:
         # next token(s) must be either "*" or an assignment target
         assignment_target: Node
         try:
@@ -93,7 +92,7 @@ class ThisfileExtension(SingleTagExtension):
         source_iterable = parser.parse_expression()
 
         # prepare & return parsed AST subtree
-        loop_body = [file_contents_call_node]
+        loop_body: list[Node] = [file_contents_call_node]
         if assignment_target == Const("*"):
             assignment_target = Name("_fysite_vars", "store")
             loop_body = [OverlayScope(assignment_target, loop_body)]
@@ -169,7 +168,7 @@ class ThisfileExtensionPhase2(SingleTagExtension):
             yield token
         yield from self.tokens_for_own_closing_tag(token.lineno)
 
-    def parse(self, parser: Parser) -> Node:
+    def parse(self, parser: Parser) -> list[Node]:
         # sanity check & get line number for later
         parser.stream.expect(f"name:{self.tag}").lineno
 

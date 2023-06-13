@@ -1,5 +1,6 @@
 from textwrap import dedent
 
+import pytest
 from jinja2 import Environment
 from jinja2.nodes import (
     Call,
@@ -15,12 +16,24 @@ from fisyte.jinja2_extension import (
     DirLevelExtension,
     FisyteData,
     ThisfileExtension,
-    ThisfileExtensionPhase2,
+    extensions,
 )
 
 
-def test_jinja2_thisfile_extension():
+@pytest.fixture
+def environment():
+    """
+    Environment with all fisyte extensions loaded.
+    """
+    yield Environment(extensions=extensions)
+
+
+def test_jinja2_thisfile_extension_ast():
+    """
+    Test that the parser produces the desired AST.
+    """
     # prepare
+    # rendering is not tested so we don't need all extensions
     environment = Environment(
         extensions=[ThisfileExtension, DirLevelExtension]
     )
@@ -76,15 +89,8 @@ def test_jinja2_thisfile_extension():
     assert rendered == "foo"
 
 
-def test_jinja2_thisfile_extension_both_phases():
+def test_jinja2_thisfile_extension_render_inline_loop(environment):
     # prepare
-    environment = Environment(
-        extensions=[
-            ThisfileExtension,
-            ThisfileExtensionPhase2,
-            DirLevelExtension,
-        ]
-    )
     source = '{% thisfile for x in ["a", "b"]|reverse %}x: {{x}}'
     # run
     t = environment.from_string(source)
@@ -104,15 +110,8 @@ def test_jinja2_thisfile_extension_both_phases():
     )
 
 
-def test_jinja2_thisfile_extension_both_phases_star_assignment():
+def test_jinja2_thisfile_extension_render_star_assignment(environment):
     # prepare
-    environment = Environment(
-        extensions=[
-            ThisfileExtension,
-            ThisfileExtensionPhase2,
-            DirLevelExtension,
-        ]
-    )
     source = '{% thisfile for * in [{"x": "a"}, {"x": "b"}] %}x: {{x}}'
     # run
     t = environment.from_string(source)
@@ -132,15 +131,8 @@ def test_jinja2_thisfile_extension_both_phases_star_assignment():
     )
 
 
-def test_jinja2_thisfile_extension_both_phases_regular_loop_dirlevel():
+def test_jinja2_thisfile_extension_render_jinja_loop_in_dirlevel(environment):
     # prepare
-    environment = Environment(
-        extensions=[
-            ThisfileExtension,
-            ThisfileExtensionPhase2,
-            DirLevelExtension,
-        ]
-    )
     source = (
         '{% dirlevel %}{% for x in ["a", "b"] %}'
         "{% thisfile %}{% endfor %}{% enddirlevel %}x: {{x}}"

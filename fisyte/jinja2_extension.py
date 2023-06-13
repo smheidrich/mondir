@@ -178,3 +178,6 @@ class ThisfileExtensionPhase2(SingleTagExtension):
 
         # re-insert dir-level block in place of regular file contents
         return self.environment.fisyte.dir_level_body
+
+
+extensions = [ThisfileExtension, DirLevelExtension, ThisfileExtensionPhase2]

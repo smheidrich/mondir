@@ -137,3 +137,25 @@ def test_render_different_ways(source, environment):
         x: b
         """
     )
+
+
+def test_render_static(environment):
+    """
+    Test that rendering files without any extension tags works too.
+    """
+    # prepare
+    source = "x: a"
+    # run
+    t = environment.from_string(source)
+    rendered = t.render()
+    # check
+    assert t.environment.fisyte.outputs == ["x: a"]
+    assert rendered == dedent(
+        """\
+        if you see this text, you might be using this library wrong:
+        as a single template can correspond to multiple output files,
+        rendering templates as usual doesn't make a lot of sense
+        ----- file: -----
+        x: a
+        """
+    )

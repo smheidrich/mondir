@@ -24,7 +24,21 @@ class ExtendedEnvironment(Environment):
     fisyte: FisyteData
 
 
-class ThisfileExtension(SingleTagExtension):
+class ExtensionWithFileContentsCallback:
+    """
+    Base for extensions that need to create call blocks calling _file_contents.
+    """
+
+    # make Mypy happy:
+    environment: ExtendedEnvironment
+
+    def _file_contents(self, caller: Callable[..., str]) -> str:
+        output = caller()
+        self.environment.fisyte.outputs.append(output)
+        return "----- file: -----\n" + output + "\n"
+
+
+class ThisfileExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
     tag = "thisfile"
 
     # make Mypy happy:
@@ -107,11 +121,6 @@ class ThisfileExtension(SingleTagExtension):
 
         return [loop_node]
 
-    def _file_contents(self, caller: Callable[..., str]) -> str:
-        output = caller()
-        self.environment.fisyte.outputs.append(output)
-        return "----- file: -----\n" + output + "\n"
-
 
 class DirLevelExtension(SingleTagExtension):
     tag = "dirlevel"
@@ -142,7 +151,9 @@ class DirLevelExtension(SingleTagExtension):
         return []
 
 
-class EnclosingExtension(SingleTagExtension):
+class EnclosingExtension(
+    ExtensionWithFileContentsCallback, SingleTagExtension
+):
     tag = "thisfilefileencl"
 
     # make Mypy happy:
@@ -171,6 +182,26 @@ class EnclosingExtension(SingleTagExtension):
         body = parser.parse_statements(
             (f"name:end{self.tag}",), drop_needle=True
         )
+
+        # if there was no thisfile or dirlevel tag, insert a default one
+        if not (
+            self.environment.fisyte.dir_level_body
+            or self.environment.fisyte.file_contents_receptacles
+        ):
+            # TODO refactor with same code in ThisfileExtension
+            file_contents_receptacle: list[Node] = []
+            file_contents_call_node = CallBlock(
+                self.call_method("_file_contents"),
+                [],
+                [],
+                file_contents_receptacle,
+            )
+            self.environment.fisyte.file_contents_receptacles.append(
+                file_contents_receptacle
+            )
+            self.environment.fisyte.dir_level_body.append(
+                file_contents_call_node
+            )
 
         # insert this into file contents receptacles
         for receptacle in self.environment.fisyte.file_contents_receptacles:

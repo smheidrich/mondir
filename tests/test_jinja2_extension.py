@@ -19,6 +19,8 @@ from fisyte.jinja2_extension import (
     extensions,
 )
 
+from .utils.parametrization import autodetect_parameters, case
+
 
 @pytest.fixture
 def environment():
@@ -28,7 +30,7 @@ def environment():
     yield Environment(extensions=extensions)
 
 
-def test_jinja2_thisfile_extension_ast():
+def test_parsing_and_storing_ast():
     """
     Test that the parser produces the desired AST.
     """
@@ -89,54 +91,26 @@ def test_jinja2_thisfile_extension_ast():
     assert rendered == "foo"
 
 
-def test_jinja2_thisfile_extension_render_inline_loop(environment):
-    # prepare
-    source = '{% thisfile for x in ["a", "b"]|reverse %}x: {{x}}'
-    # run
-    t = environment.from_string(source)
-    rendered = t.render()
-    # check
-    assert t.environment.fisyte.outputs == ["x: b", "x: a"]
-    assert rendered == dedent(
-        """\
-        if you see this text, you might be using this library wrong:
-        as a single template can correspond to multiple output files,
-        rendering templates as usual doesn't make a lot of sense
-        ----- file: -----
-        x: b
-        ----- file: -----
-        x: a
-        """
-    )
-
-
-def test_jinja2_thisfile_extension_render_star_assignment(environment):
-    # prepare
-    source = '{% thisfile for * in [{"x": "a"}, {"x": "b"}] %}x: {{x}}'
-    # run
-    t = environment.from_string(source)
-    rendered = t.render()
-    # check
-    assert t.environment.fisyte.outputs == ["x: a", "x: b"]
-    assert rendered == dedent(
-        """\
-        if you see this text, you might be using this library wrong:
-        as a single template can correspond to multiple output files,
-        rendering templates as usual doesn't make a lot of sense
-        ----- file: -----
-        x: a
-        ----- file: -----
-        x: b
-        """
-    )
-
-
-def test_jinja2_thisfile_extension_render_jinja_loop_in_dirlevel(environment):
-    # prepare
-    source = (
+@autodetect_parameters()
+@case(
+    name="inline_loop_explicit_variable",
+    source='{% thisfile for x in ["b", "a"]|reverse %}x: {{x}}',
+)
+@case(
+    name="inline_loop_star",
+    source='{% thisfile for * in [{"x": "a"}, {"x": "b"}] %}x: {{x}}',
+)
+@case(
+    name="jinja_loop_in_dirlevel",
+    source=(
         '{% dirlevel %}{% for x in ["a", "b"] %}'
         "{% thisfile %}{% endfor %}{% enddirlevel %}x: {{x}}"
-    )
+    ),
+)
+def test_render_different_ways(source, environment):
+    """
+    Test different ways of rendering the same text.
+    """
     # run
     t = environment.from_string(source)
     rendered = t.render()

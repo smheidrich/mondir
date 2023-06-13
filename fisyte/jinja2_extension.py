@@ -142,7 +142,7 @@ class DirLevelExtension(SingleTagExtension):
         return []
 
 
-class ThisfileExtensionPhase2(SingleTagExtension):
+class EnclosingExtension(SingleTagExtension):
     tag = "thisfilefileencl"
 
     # make Mypy happy:
@@ -180,4 +180,4 @@ class ThisfileExtensionPhase2(SingleTagExtension):
         return self.environment.fisyte.dir_level_body
 
 
-extensions = [ThisfileExtension, DirLevelExtension, ThisfileExtensionPhase2]
+extensions = [ThisfileExtension, DirLevelExtension, EnclosingExtension]

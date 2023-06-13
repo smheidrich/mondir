@@ -7,7 +7,7 @@ from jinja2.lexer import Token, TokenStream
 from jinja2.nodes import CallBlock, Const, For, Name, Node, OverlayScope
 from jinja2.parser import Parser
 
-from .utils.jinja2 import SelfClosingTagsExtension, SingleTagExtension
+from .utils.jinja2 import SingleTagExtension
 
 
 @dataclass
@@ -23,7 +23,7 @@ class ExtendedEnvironment(Environment):
     fisyte_outputs: list[str]
 
 
-class ThisfileExtension(SelfClosingTagsExtension, SingleTagExtension):
+class ThisfileExtension(SingleTagExtension):
     tag = "thisfile"
 
     # make Mypy happy:
@@ -52,10 +52,6 @@ class ThisfileExtension(SelfClosingTagsExtension, SingleTagExtension):
         # ... or else just the end of the tag (nothing to parse)
         else:
             dir_level_body_parts = [file_contents_call_node]
-
-        # parse up to closing tag inserted by our base class (empty), which
-        # also raises an exc. if there is any other garbage in our opening tag
-        parser.parse_statements((f"name:end{self.tag}",), drop_needle=True)
 
         self.environment.fisyte_dirlevel_opts.file_contents_receptacles.append(
             file_contents_receptacle

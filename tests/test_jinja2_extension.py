@@ -144,7 +144,7 @@ def test_jinja2_thisfile_extension_both_phases_regular_loop_dirlevel():
     )
     source = (
         '{% dirlevel %}{% for x in ["a", "b"] %}'
-        '{% thisfile %}{% endfor %}{% enddirlevel %}x: {{x}}'
+        "{% thisfile %}{% endfor %}{% enddirlevel %}x: {{x}}"
     )
     # run
     t = environment.from_string(source)

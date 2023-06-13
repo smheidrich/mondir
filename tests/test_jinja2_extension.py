@@ -107,6 +107,16 @@ def test_parsing_and_storing_ast():
         "{% thisfile %}{% endfor %}{% enddirlevel %}x: {{x}}"
     ),
 )
+@case(
+    name="multiple_thisfile_in_dirlevel",
+    source=(
+        "{% dirlevel %}"
+        '{% set x = "a" %}{% thisfile %}'
+        '{% set x = "b" %}{% thisfile %}'
+        "{% enddirlevel %}"
+        "x: {{x}}"
+    ),
+)
 def test_render_different_ways(source, environment):
     """
     Test different ways of rendering the same text.

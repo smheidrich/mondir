@@ -13,7 +13,7 @@ from jinja2.nodes import (
 
 from fisyte.jinja2_extension import (
     DirLevelExtension,
-    DirLevelOpts,
+    FisyteData,
     ThisfileExtension,
     ThisfileExtensionPhase2,
 )
@@ -31,7 +31,7 @@ def test_jinja2_thisfile_extension():
     t = environment.from_string(source)
     rendered = t.render()
     # check
-    assert t.environment.fisyte_dirlevel_opts == DirLevelOpts(
+    assert t.environment.fisyte == FisyteData(
         file_contents_receptacles=[[]],
         dir_level_body=[
             For(
@@ -90,7 +90,7 @@ def test_jinja2_thisfile_extension_both_phases():
     t = environment.from_string(source)
     rendered = t.render()
     # check
-    assert t.environment.fisyte_outputs == ["x: b", "x: a"]
+    assert t.environment.fisyte.outputs == ["x: b", "x: a"]
     assert rendered == dedent(
         """\
         if you see this text, you might be using this library wrong:
@@ -118,7 +118,7 @@ def test_jinja2_thisfile_extension_both_phases_star_assignment():
     t = environment.from_string(source)
     rendered = t.render()
     # check
-    assert t.environment.fisyte_outputs == ["x: a", "x: b"]
+    assert t.environment.fisyte.outputs == ["x: a", "x: b"]
     assert rendered == dedent(
         """\
         if you see this text, you might be using this library wrong:
@@ -149,7 +149,7 @@ def test_jinja2_thisfile_extension_both_phases_regular_loop_dirlevel():
     t = environment.from_string(source)
     rendered = t.render()
     # check
-    assert t.environment.fisyte_outputs == ["x: a", "x: b"]
+    assert t.environment.fisyte.outputs == ["x: a", "x: b"]
     assert rendered == dedent(
         """\
         if you see this text, you might be using this library wrong:

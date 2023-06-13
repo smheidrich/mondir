@@ -11,15 +11,17 @@ from .utils.jinja2 import SingleTagExtension
 
 
 @dataclass
-class DirLevelOpts:
+class FisyteData:
+    # parsing
     file_contents_receptacles: list[list[Node]] = field(default_factory=list)
     dir_level_body: list[Node] = field(default_factory=list)
+    # output
+    outputs: list[str] = field(default_factory=list)
 
 
 # make Mypy happy:
 class ExtendedEnvironment(Environment):
-    fisyte_dirlevel_opts: DirLevelOpts
-    fisyte_outputs: list[str]
+    fisyte: FisyteData
 
 
 class ThisfileExtension(SingleTagExtension):
@@ -52,7 +54,7 @@ class ThisfileExtension(SingleTagExtension):
         else:
             dir_level_body_parts = [file_contents_call_node]
 
-        self.environment.fisyte_dirlevel_opts.file_contents_receptacles.append(
+        self.environment.fisyte.file_contents_receptacles.append(
             file_contents_receptacle
         )
 
@@ -63,9 +65,7 @@ class ThisfileExtension(SingleTagExtension):
             return dir_level_body_parts
         else:
             # if we're not, we have to do it ourselves
-            self.environment.fisyte_dirlevel_opts.dir_level_body.extend(
-                dir_level_body_parts
-            )
+            self.environment.fisyte.dir_level_body.extend(dir_level_body_parts)
             return []
 
     def parse_for(
@@ -109,7 +109,7 @@ class ThisfileExtension(SingleTagExtension):
 
     def _file_contents(self, caller: Callable[..., str]) -> str:
         output = caller()
-        self.environment.fisyte_outputs.append(output)
+        self.environment.fisyte.outputs.append(output)
         return "----- file: -----\n" + output + "\n"
 
 
@@ -123,7 +123,7 @@ class DirLevelExtension(SingleTagExtension):
         super().__init__(environment)
 
         # storage of things we parse from extension blocks
-        environment.extend(fisyte_dirlevel_opts=DirLevelOpts())
+        environment.extend(fisyte=FisyteData())
 
     def parse(self, parser: Parser) -> Node | list[Node]:
         # first token is always our tag name, just sanity check & get lineno:
@@ -135,7 +135,7 @@ class DirLevelExtension(SingleTagExtension):
         )
 
         # save body for later
-        self.environment.fisyte_dirlevel_opts.dir_level_body.extend(body)
+        self.environment.fisyte.dir_level_body.extend(body)
 
         # return nothing at this point, as dirlevel contents are inserted into
         # the AST at a later stage by ThisfileExtensionPhase2
@@ -147,11 +147,6 @@ class ThisfileExtensionPhase2(SingleTagExtension):
 
     # make Mypy happy:
     environment: ExtendedEnvironment
-
-    def __init__(self, environment: Environment):
-        super().__init__(environment)
-
-        environment.extend(fisyte_outputs=[])
 
     def filter_stream(self, stream: TokenStream) -> Iterable[Token]:
         # short preamble to indicate this is not a normal template
@@ -178,10 +173,8 @@ class ThisfileExtensionPhase2(SingleTagExtension):
         )
 
         # insert this into file contents receptacles
-        for (
-            receptacle
-        ) in self.environment.fisyte_dirlevel_opts.file_contents_receptacles:
+        for receptacle in self.environment.fisyte.file_contents_receptacles:
             receptacle.extend(body)
 
         # re-insert dir-level block in place of regular file contents
-        return self.environment.fisyte_dirlevel_opts.dir_level_body
+        return self.environment.fisyte.dir_level_body

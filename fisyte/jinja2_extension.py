@@ -33,9 +33,49 @@ class ThisfileExtension(SelfClosingTagsExtension, SingleTagExtension):
         # first token is necessarily 'thisfile' tag name, sanity check & skip:
         parser.stream.expect(f"name:{self.tag}")
 
-        # next token must say "for"
-        parser.stream.expect("name:for")
+        # prepare receptacle that will hold the (non-dirlevel) template file
+        # contents once we parse them at the end (we don't know them yet)...
+        file_contents_receptacle = []
+        # ... and a call block node that will contain them => process on render
+        file_contents_call_node = CallBlock(
+            self.call_method("_file_contents"),
+            [],
+            [],
+            file_contents_receptacle,
+        )
 
+        # next we either have "for" signifying of an inline for loop...
+        if parser.stream.skip_if("name:for"):
+            dir_level_body_parts = self.parse_for(
+                parser, file_contents_call_node
+            )
+        # ... or else just the end of the tag (nothing to parse)
+        else:
+            dir_level_body_parts = [file_contents_call_node]
+
+        # parse up to closing tag inserted by our base class (empty), which
+        # also raises an exc. if there is any other garbage in our opening tag
+        parser.parse_statements((f"name:end{self.tag}",), drop_needle=True)
+
+        self.environment.fisyte_dirlevel_opts.file_contents_receptacles.append(
+            file_contents_receptacle
+        )
+
+        # we need to make sure the dir-level subtree is stored outside the
+        # template AST so that the latter contains the contents only
+        if any(tag == "dirlevel" for tag in parser._tag_stack):
+            # if we're already inside dirlevel tags, we have them handle this
+            return dir_level_body_parts
+        else:
+            # if we're not, we have to do it ourselves
+            self.environment.fisyte_dirlevel_opts.dir_level_body.extend(
+                dir_level_body_parts
+            )
+            return []
+
+    def parse_for(
+        self, parser: Parser, file_contents_call_node: CallBlock
+    ) -> Iterable[Node]:
         # next token(s) must be either "*" or an assignment target
         assignment_target: Node
         try:
@@ -44,7 +84,7 @@ class ThisfileExtension(SelfClosingTagsExtension, SingleTagExtension):
             if parser.stream.current.value != "*":
                 raise TemplateSyntaxError(
                     "expected identifier or * for assignment target after "
-                    "'{tag} for'",
+                    f"'{self.tag} for'",
                     parser.stream.current.lineno,
                 )
             assignment_target = Const("*")
@@ -55,40 +95,22 @@ class ThisfileExtension(SelfClosingTagsExtension, SingleTagExtension):
 
         # next tokens must be the source iterable for the for loop
         source_iterable = parser.parse_expression()
-        lineno = source_iterable.lineno
 
-        # parse up to closing tag inserted by our base class (empty)
-        parser.parse_statements((f"name:end{self.tag}",), drop_needle=True)
-
-        # save what we've found as AST subtree that will run the loop with file
-        # contents inside when rendered, but save it outside the template AST
-        # (this method's return value) so that that contains the contents only
-        file_contents_receptacle = []
-        self.environment.fisyte_dirlevel_opts.file_contents_receptacles.append(
-            file_contents_receptacle
-        )
-        file_contents_call_node = CallBlock(
-            self.call_method("_file_contents"),
-            [],
-            [],
-            file_contents_receptacle,
-        ).set_lineno(lineno)
+        # prepare & return parsed AST subtree
         loop_body = [file_contents_call_node]
         if assignment_target == Const("*"):
             assignment_target = Name("_fysite_vars", "store")
             loop_body = [OverlayScope(assignment_target, loop_body)]
-        self.environment.fisyte_dirlevel_opts.dir_level_body.append(
-            For(
-                assignment_target,
-                source_iterable,
-                loop_body,
-                None,
-                None,
-                False,
-            )
+        loop_node = For(
+            assignment_target,
+            source_iterable,
+            loop_body,
+            None,
+            None,
+            False,
         )
 
-        return []  # dir-level is separate from file contents at this stage
+        return [loop_node]
 
     def _file_contents(self, caller: Callable[..., str]) -> str:
         output = caller()

@@ -1,6 +1,6 @@
 from textwrap import dedent
 
-from jinja2 import Environment, Template
+from jinja2 import Environment
 from jinja2.nodes import (
     Call,
     CallBlock,
@@ -107,16 +107,47 @@ def test_jinja2_thisfile_extension_both_phases():
 
 def test_jinja2_thisfile_extension_both_phases_star_assignment():
     # prepare
-    source = '{% thisfile for * in [{"x": "a"}, {"x": "b"}] %}x: {{x}}'
-    # run
-    t = Template(
-        source=source,
+    environment = Environment(
         extensions=[
             ThisfileExtension,
             ThisfileExtensionPhase2,
             DirLevelExtension,
-        ],
+        ]
     )
+    source = '{% thisfile for * in [{"x": "a"}, {"x": "b"}] %}x: {{x}}'
+    # run
+    t = environment.from_string(source)
+    rendered = t.render()
+    # check
+    assert t.environment.fisyte_outputs == ["x: a", "x: b"]
+    assert rendered == dedent(
+        """\
+        if you see this text, you might be using this library wrong:
+        as a single template can correspond to multiple output files,
+        rendering templates as usual doesn't make a lot of sense
+        ----- file: -----
+        x: a
+        ----- file: -----
+        x: b
+        """
+    )
+
+
+def test_jinja2_thisfile_extension_both_phases_regular_loop_dirlevel():
+    # prepare
+    environment = Environment(
+        extensions=[
+            ThisfileExtension,
+            ThisfileExtensionPhase2,
+            DirLevelExtension,
+        ]
+    )
+    source = (
+        '{% dirlevel %}{% for x in ["a", "b"] %}'
+        '{% thisfile %}{% endfor %}{% enddirlevel %}x: {{x}}'
+    )
+    # run
+    t = environment.from_string(source)
     rendered = t.render()
     # check
     assert t.environment.fisyte_outputs == ["x: a", "x: b"]

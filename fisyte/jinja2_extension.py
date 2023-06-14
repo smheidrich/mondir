@@ -155,7 +155,7 @@ class DirLevelExtension(SingleTagExtension):
         self.environment.fisyte.dir_level_body.extend(body)
 
         # return nothing at this point, as dirlevel contents are inserted into
-        # the AST at a later stage by ThisfileExtensionPhase2
+        # the AST at a later stage by EnclosingExtension
         return []
 
 

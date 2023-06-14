@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Iterable
 
 from jinja2 import Environment, TemplateSyntaxError
+from jinja2.ext import Extension
 from jinja2.lexer import Token, TokenStream
 from jinja2.nodes import CallBlock, Const, For, Name, Node, OverlayScope
 from jinja2.parser import Parser
@@ -24,13 +25,23 @@ class ExtendedEnvironment(Environment):
     fisyte: FisyteData
 
 
-class ExtensionWithFileContentsCallback:
+class ExtensionWithFileContentsCallback(Extension):
     """
     Base for extensions that need to create call blocks calling _file_contents.
     """
 
     # make Mypy happy:
     environment: ExtendedEnvironment
+
+    def _make_file_contents_call_block(
+        self, file_contents_receptacle: list[Node]
+    ) -> CallBlock:
+        return CallBlock(
+            self.call_method("_file_contents"),
+            [],
+            [],
+            file_contents_receptacle,
+        )
 
     def _file_contents(self, caller: Callable[..., str]) -> str:
         output = caller()
@@ -52,11 +63,8 @@ class ThisfileExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
         # contents once we parse them at the end (we don't know them yet)...
         file_contents_receptacle: list[Node] = []
         # ... and a call block node that will contain them => process on render
-        file_contents_call_node = CallBlock(
-            self.call_method("_file_contents"),
-            [],
-            [],
-            file_contents_receptacle,
+        file_contents_call_node = self._make_file_contents_call_block(
+            file_contents_receptacle
         )
 
         # next we either have "for" signifying of an inline for loop...
@@ -188,13 +196,10 @@ class EnclosingExtension(
             self.environment.fisyte.dir_level_body
             or self.environment.fisyte.file_contents_receptacles
         ):
-            # TODO refactor with same code in ThisfileExtension
+            # TODO refactor with same code in ThisfileExtension? difficult...
             file_contents_receptacle: list[Node] = []
-            file_contents_call_node = CallBlock(
-                self.call_method("_file_contents"),
-                [],
-                [],
-                file_contents_receptacle,
+            file_contents_call_node = self._make_file_contents_call_block(
+                file_contents_receptacle
             )
             self.environment.fisyte.file_contents_receptacles.append(
                 file_contents_receptacle

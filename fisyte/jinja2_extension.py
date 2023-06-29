@@ -264,6 +264,13 @@ class DirLevelExtension(SingleTagExtension):
 class EnclosingExtension(
     ExtensionWithFileContentsCallback, SingleTagExtension
 ):
+    """
+    For internal use only.
+
+    Encloses the whole file contents in a block so that we can capture them at
+    the parsing stage.
+    """
+
     tag = "thisfilefileencl"
 
     # make Mypy happy:

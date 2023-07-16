@@ -1,5 +1,6 @@
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from textwrap import indent
 from typing import cast
 
 from jinja2 import Environment, TemplateSyntaxError
@@ -12,31 +13,47 @@ from .utils.jinja2 import SingleTagExtension
 
 
 @dataclass
+class RenderedFile:
+    filename: str
+    contents: str
+
+
+@dataclass
+class RenderingFile:
+    """
+    File for which rendering information is still being collected.
+
+    Basically a builder (yes, like in Java) to allow gradually adding required
+    parts of a `RenderedFile` without having to add `| None` to the the
+    latter's attribute types.
+    """
+
+    filename: str | None = None
+    contents: str | None = None
+
+    def done(self) -> RenderedFile:
+        assert self.filename is not None, "bug: no filename specified"
+        assert self.contents is not None, "bug: no contents specified"
+        return RenderedFile(self.filename, self.contents)
+
+
+@dataclass
 class FisyteData:
     # parsing
     file_contents_receptacles: list[list[Node]] = field(default_factory=list)
     dir_level_body: list[Node] = field(default_factory=list)
     actual_filename: list[Node] = field(default_factory=list)
-    # output
-    rendered_filenames: list[str] = field(default_factory=list)
-    rendered_contents: list[str] = field(default_factory=list)
+    # collecting rendered parts
+    rendering_file: RenderingFile | None = None
+    # final output
+    rendered_files: list[RenderedFile] = field(default_factory=list)
     "Mapping from filenames to rendered content"
 
     @property
-    def rendered_files(self) -> dict[str, str]:
-        n_filenames = len(self.rendered_filenames)
-        n_contents = len(self.rendered_contents)
-        if n_filenames != n_contents:
-            raise RuntimeError(
-                f"number of rendered filenames ({n_filenames}) does not match "
-                f"number of rendered contents ({n_contents}), which should "
-                "never happen - please report this as a bug"
-            )
+    def rendered_files_map(self) -> dict[str, str]:
         return {
-            filename: contents
-            for filename, contents in zip(
-                self.rendered_filenames, self.rendered_contents
-            )
+            rendered.filename: rendered.contents
+            for rendered in self.rendered_files
         }
 
 
@@ -57,11 +74,31 @@ class ExtensionWithFileContentsCallback(Extension):
         self,
         filename_template: list[Node],
         file_contents_receptacle: list[Node],
-    ) -> list[CallBlock]:
+    ) -> list[Node]:
         return [
+            self._make_file_rendering_start_block(),
             self._make_filename_call_block(filename_template),
             self._make_file_contents_call_block(file_contents_receptacle),
+            self._make_file_rendering_done_block(),
         ]
+
+    # indiv. block creation methods
+
+    def _make_file_rendering_start_block(self) -> CallBlock:
+        return CallBlock(
+            self.call_method("_start_rendering_file"),
+            [],
+            [],
+            [],
+        )
+
+    def _make_file_rendering_done_block(self) -> CallBlock:
+        return CallBlock(
+            self.call_method("_done_rendering_file"),
+            [],
+            [],
+            [],
+        )
 
     # this doesn't need a receptacle because we know the filename template
     # either from the start (based on the actual filename) or at the point of
@@ -86,15 +123,42 @@ class ExtensionWithFileContentsCallback(Extension):
             file_contents_receptacle,
         )
 
+    # callbacks
+
+    def _start_rendering_file(self, caller: Callable[..., str]) -> str:
+        assert (
+            self.environment.fisyte.rendering_file is None
+        ), "bug: started rendering new file before previous was done"
+        self.environment.fisyte.rendering_file = RenderingFile()
+        return "start new file\n"
+
+    def _done_rendering_file(self, caller: Callable[..., str]) -> str:
+        assert (
+            self.environment.fisyte.rendering_file is not None
+        ), "bug: file rendering done callback called but no file in progress"
+        self.environment.fisyte.rendered_files.append(
+            self.environment.fisyte.rendering_file.done()
+        )
+        self.environment.fisyte.rendering_file = None
+        return "done with file\n"
+
     def _filename(self, caller: Callable[..., str]) -> str:
-        output = caller()
-        self.environment.fisyte.rendered_filenames.append(output)
-        return f"----- file: {output} -----\n"
+        assert (
+            self.environment.fisyte.rendering_file is not None
+        ), "bug: filename callback called but no file in progress"
+        filename = caller()
+        if not filename:
+            raise ValueError("empty filename encountered")
+        self.environment.fisyte.rendering_file.filename = filename
+        return f"  set filename to {filename!r}\n"
 
     def _file_contents(self, caller: Callable[..., str]) -> str:
+        assert (
+            self.environment.fisyte.rendering_file is not None
+        ), "bug: file contents callback called but no file in progress"
         output = caller()
-        self.environment.fisyte.rendered_contents.append(output)
-        return output + "\n"
+        self.environment.fisyte.rendering_file.contents = output
+        return "  set output to:\n" + indent(output, "    ") + "\n"
 
 
 class ThisfileExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
@@ -126,6 +190,17 @@ class ThisfileExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
             file_contents_receptacle
         )
 
+        # lastly, if the block ends in "with", it's an opening tag to further
+        # thisfile-level template instructions (like setting a filename)
+        if parser.stream.skip_if("name:with"):
+            tag_contents = parser.parse_statements(
+                (f"name:end{self.tag}",), drop_needle=True
+            )
+            # TODO clean this up (e.g. wrapper around fcn):
+            last = file_callback_nodes.pop()
+            file_callback_nodes.extend(tag_contents)
+            file_callback_nodes.append(last)
+
         # we need to make sure the dir-level subtree is stored outside the
         # template AST so that the latter contains the contents only
         if any(tag == "dirlevel" for tag in parser._tag_stack):
@@ -137,7 +212,7 @@ class ThisfileExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
             return []
 
     def parse_for(
-        self, parser: Parser, file_callback_nodes: list[CallBlock]
+        self, parser: Parser, file_callback_nodes: list[Node]
     ) -> list[Node]:
         # next token(s) must be either "*" or an assignment target
         assignment_target: Node
@@ -232,6 +307,42 @@ class ActualFilenameExtension(
         return []
 
 
+class FilenameExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
+    """
+    Allows setting the desired output filename template.
+    """
+
+    tag = "filename"
+
+    # make Mypy happy:
+    environment: ExtendedEnvironment
+
+    def __init__(self, environment: Environment):
+        super().__init__(environment)
+
+        # storage of things we parse from extension blocks
+        environment.extend(fisyte=FisyteData())
+
+    def parse(self, parser: Parser) -> Node | list[Node]:
+        # first token is always our tag name, just sanity check & get lineno:
+        lineno = parser.stream.expect(f"name:{self.tag}").lineno
+
+        # check if usage context is ok
+        if not any(tag == "thisfile" for tag in parser._tag_stack):
+            raise TemplateSyntaxError(
+                "filename tags can only be used inside thisfile tags",
+                lineno,
+            )
+
+        # parse body
+        body = parser.parse_statements(
+            (f"name:end{self.tag}",), drop_needle=True
+        )
+
+        # return block with callback that sets filename
+        return self._make_filename_call_block(body)
+
+
 class DirLevelExtension(SingleTagExtension):
     tag = "dirlevel"
 
@@ -283,7 +394,8 @@ class EnclosingExtension(
             "data",
             "if you see this text, you might be using this library wrong:\n"
             "as a single template can correspond to multiple output files,\n"
-            "rendering templates as usual doesn't make a lot of sense\n",
+            "rendering templates as usual doesn't make a lot of sense.\n"
+            "log of operations:\n",
         )
         # enclose entire file in tags that let us parse it
         yield from self.tokens_for_own_tag(0)
@@ -327,6 +439,7 @@ class EnclosingExtension(
 extensions = [
     ActualFilenameExtension,
     ThisfileExtension,
+    FilenameExtension,
     DirLevelExtension,
     EnclosingExtension,
 ]

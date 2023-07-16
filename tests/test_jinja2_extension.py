@@ -79,6 +79,22 @@ def test_parsing_and_storing_ast():
                                     ExtensionAttribute(
                                         "fisyte.jinja2_extension."
                                         "ThisfileExtension",
+                                        "_start_rendering_file",
+                                    ),
+                                    [],
+                                    [],
+                                    None,
+                                    None,
+                                ),
+                                [],
+                                [],
+                                [],
+                            ),
+                            CallBlock(
+                                Call(
+                                    ExtensionAttribute(
+                                        "fisyte.jinja2_extension."
+                                        "ThisfileExtension",
                                         "_filename",
                                     ),
                                     [],
@@ -106,6 +122,22 @@ def test_parsing_and_storing_ast():
                                 [],
                                 [],
                             ),
+                            CallBlock(
+                                Call(
+                                    ExtensionAttribute(
+                                        "fisyte.jinja2_extension."
+                                        "ThisfileExtension",
+                                        "_done_rendering_file",
+                                    ),
+                                    [],
+                                    [],
+                                    None,
+                                    None,
+                                ),
+                                [],
+                                [],
+                                [],
+                            ),
                         ],
                     )
                 ],
@@ -115,8 +147,8 @@ def test_parsing_and_storing_ast():
             )
         ],
         actual_filename=[Output([TemplateData("myfile")])],
-        rendered_filenames=[],
-        rendered_contents=[],
+        rendering_file=None,
+        rendered_files=[],
     )
     assert rendered == "foo"
 
@@ -124,21 +156,40 @@ def test_parsing_and_storing_ast():
 @autodetect_parameters()
 @case(
     name="inline_loop_explicit_variable",
+    template_filename="{{ x }}.txt",
     source='{% thisfile for x in ["b", "a"]|reverse %}x: {{x}}',
 )
 @case(
     name="inline_loop_star",
+    template_filename="{{ x }}.txt",
     source='{% thisfile for * in [{"x": "a"}, {"x": "b"}] %}x: {{x}}',
 )
 @case(
+    name="inline_loop_star_filename_in_with",
+    template_filename="template.txt",
+    source='{% thisfile for * in [{"x": "a"}, {"x": "b"}] with %}'
+    "{% filename %}{{x}}.txt{% endfilename %}{% endthisfile %}x: {{x}}",
+)
+@case(
     name="jinja_loop_in_dirlevel",
+    template_filename="{{ x }}.txt",
     source=(
         '{% dirlevel %}{% for x in ["a", "b"] %}'
         "{% thisfile %}{% endfor %}{% enddirlevel %}x: {{x}}"
     ),
 )
 @case(
+    name="jinja_loop_in_dirlevel_filename_in_with",
+    template_filename="template.txt",
+    source=(
+        '{% dirlevel %}{% for x in ["a", "b"] %}'
+        "{% thisfile with %}{% filename %}{{x}}.txt{% endfilename %}"
+        "{% endthisfile %}{% endfor %}{% enddirlevel %}x: {{x}}"
+    ),
+)
+@case(
     name="multiple_thisfile_in_dirlevel",
+    template_filename="{{ x }}.txt",
     source=(
         "{% dirlevel %}"
         '{% set x = "a" %}{% thisfile %}'
@@ -147,31 +198,35 @@ def test_parsing_and_storing_ast():
         "x: {{x}}"
     ),
 )
-def test_render_different_ways(source):
+@case(
+    name="multiple_thisfile_in_dirlevel_filename_in_with",
+    template_filename="template.txt",
+    source=(
+        "{% dirlevel %}"
+        '{% set x = "a" %}{% thisfile with %}'
+        "{% filename %}{{x}}.txt{% endfilename %}"
+        "{% endthisfile %}"
+        '{% set x = "b" %}{% thisfile with %}'
+        "{% filename %}{{x}}.txt{% endfilename %}"
+        "{% endthisfile %}"
+        "{% enddirlevel %}"
+        "x: {{x}}"
+    ),
+)
+def test_render_different_ways(template_filename, source):
     """
     Test different ways of rendering the same text.
     """
     # prepare
-    environment = filename_dict_loader_environment({"{{ x }}.txt": source})
+    environment = filename_dict_loader_environment({template_filename: source})
     # run
-    t = environment.get_template("{{ x }}.txt")
-    rendered = t.render()
+    t = environment.get_template(template_filename)
+    t.render()
     # check
-    assert t.environment.fisyte.rendered_files == {
+    assert t.environment.fisyte.rendered_files_map == {
         "a.txt": "x: a",
         "b.txt": "x: b",
     }
-    assert rendered == dedent(
-        """\
-        if you see this text, you might be using this library wrong:
-        as a single template can correspond to multiple output files,
-        rendering templates as usual doesn't make a lot of sense
-        ----- file: a.txt -----
-        x: a
-        ----- file: b.txt -----
-        x: b
-        """
-    )
 
 
 def test_render_static():
@@ -185,13 +240,47 @@ def test_render_static():
     t = environment.get_template("myfile")
     rendered = t.render()
     # check
-    assert t.environment.fisyte.rendered_files == {"myfile": "x: a"}
+    assert t.environment.fisyte.rendered_files_map == {"myfile": "x: a"}
     assert rendered == dedent(
         """\
         if you see this text, you might be using this library wrong:
         as a single template can correspond to multiple output files,
-        rendering templates as usual doesn't make a lot of sense
-        ----- file: myfile -----
-        x: a
+        rendering templates as usual doesn't make a lot of sense.
+        log of operations:
+        start new file
+          set filename to 'myfile'
+          set output to:
+            x: a
+        done with file
+        """
+    )
+
+
+def test_render_filename_using_with():
+    """
+    Test that specifying filenames inside thisfile ... with tags works.
+    """
+    # prepare
+    source = """
+    {% thisfile with %}{% filename %}fn{% endfilename %}{% endthisfile %}hello
+    """.strip()
+    environment = filename_dict_loader_environment({"myfile": source})
+    # run
+    t = environment.get_template("myfile")
+    rendered = t.render()
+    # check
+    assert t.environment.fisyte.rendered_files_map == {"fn": "hello"}
+    assert rendered == dedent(
+        """\
+        if you see this text, you might be using this library wrong:
+        as a single template can correspond to multiple output files,
+        rendering templates as usual doesn't make a lot of sense.
+        log of operations:
+        start new file
+          set filename to 'myfile'
+          set output to:
+            hello
+          set filename to 'fn'
+        done with file
         """
     )

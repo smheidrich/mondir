@@ -1,6 +1,7 @@
 from textwrap import dedent
 
-from jinja2 import Environment
+import pytest
+from jinja2 import Environment, TemplateSyntaxError
 from jinja2.nodes import (
     Call,
     CallBlock,
@@ -284,3 +285,38 @@ def test_render_filename_using_with():
         done with file
         """
     )
+
+
+@case(
+    name="no_dirlevel",
+    source="{% thisfile %}{% filename %}fn{% endfilename %}hello",
+)
+@case(
+    name="inside_dirlevel",
+    source=(
+        "{% dirlevel %}{% thisfile %}{% filename %}fn{% endfilename %}"
+        "{% enddirlevel %}hello"
+    ),
+)
+@case(
+    name="outside_dirlevel",
+    source=(
+        "{% dirlevel %}{% thisfile %}{% enddirlevel %}"
+        "{% filename %}fn{% endfilename %}hello"
+    ),
+)
+def test_filename_not_allowed_outside_thisfile(source):
+    """
+    Test that specifying filenames outside thisfile tags is not allowed.
+
+    This behavior might change in the future, but that should happen by a
+    conscious decision, not introduction of a bug - hence this test.
+    """
+    # prepare
+    environment = filename_dict_loader_environment({"myfile": source})
+    # run
+    with pytest.raises(
+        TemplateSyntaxError,
+        match="filename tags can only be used inside thisfile tags",
+    ):
+        environment.get_template("myfile")

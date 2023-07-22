@@ -62,13 +62,32 @@ class ExtendedEnvironment(Environment):
     fisyte: FisyteData
 
 
-class ExtensionWithFileContentsCallback(Extension):
+class FisyteStateExtension(Extension):
     """
-    Base for extensions that need to create call blocks calling _file_contents.
+    Jinja2 extension that needs access to fisyte state.
     """
 
     # make Mypy happy:
     environment: ExtendedEnvironment
+
+    def __init__(self, environment: Environment):
+        super().__init__(environment)
+
+        # storage of things we parse from extension blocks
+        environment.extend(fisyte=FisyteData())
+
+    @property
+    def state(self) -> FisyteData:
+        """
+        Shortcut to access fisyte state (shorter than `environment.fisyte`).
+        """
+        return self.environment.fisyte
+
+
+class ExtensionWithFileContentsCallback(FisyteStateExtension):
+    """
+    Base for extensions that need to create call blocks calling _file_contents.
+    """
 
     def _make_file_callback_nodes(
         self,
@@ -127,45 +146,40 @@ class ExtensionWithFileContentsCallback(Extension):
 
     def _start_rendering_file(self, caller: Callable[..., str]) -> str:
         assert (
-            self.environment.fisyte.rendering_file is None
+            self.state.rendering_file is None
         ), "bug: started rendering new file before previous was done"
-        self.environment.fisyte.rendering_file = RenderingFile()
+        self.state.rendering_file = RenderingFile()
         return "start new file\n"
 
     def _done_rendering_file(self, caller: Callable[..., str]) -> str:
         assert (
-            self.environment.fisyte.rendering_file is not None
+            self.state.rendering_file is not None
         ), "bug: file rendering done callback called but no file in progress"
-        self.environment.fisyte.rendered_files.append(
-            self.environment.fisyte.rendering_file.done()
-        )
-        self.environment.fisyte.rendering_file = None
+        self.state.rendered_files.append(self.state.rendering_file.done())
+        self.state.rendering_file = None
         return "done with file\n"
 
     def _filename(self, caller: Callable[..., str]) -> str:
         assert (
-            self.environment.fisyte.rendering_file is not None
+            self.state.rendering_file is not None
         ), "bug: filename callback called but no file in progress"
         filename = caller()
         if not filename:
             raise ValueError("empty filename encountered")
-        self.environment.fisyte.rendering_file.filename = filename
+        self.state.rendering_file.filename = filename
         return f"  set filename to {filename!r}\n"
 
     def _file_contents(self, caller: Callable[..., str]) -> str:
         assert (
-            self.environment.fisyte.rendering_file is not None
+            self.state.rendering_file is not None
         ), "bug: file contents callback called but no file in progress"
         output = caller()
-        self.environment.fisyte.rendering_file.contents = output
+        self.state.rendering_file.contents = output
         return "  set output to:\n" + indent(output, "    ") + "\n"
 
 
 class ThisfileExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
     tag = "thisfile"
-
-    # make Mypy happy:
-    environment: ExtendedEnvironment
 
     def parse(self, parser: Parser) -> Node | list[Node]:
         # first token is necessarily 'thisfile' tag name, sanity check & skip:
@@ -176,7 +190,7 @@ class ThisfileExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
         file_contents_receptacle: list[Node] = []
         # ... and a call block node that will contain them => process on render
         file_callback_nodes = self._make_file_callback_nodes(
-            self.environment.fisyte.actual_filename, file_contents_receptacle
+            self.state.actual_filename, file_contents_receptacle
         )
 
         # next we either have "for" signifying of an inline for loop...
@@ -186,9 +200,7 @@ class ThisfileExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
         else:
             dir_level_body_parts = cast(list[Node], file_callback_nodes)
 
-        self.environment.fisyte.file_contents_receptacles.append(
-            file_contents_receptacle
-        )
+        self.state.file_contents_receptacles.append(file_contents_receptacle)
 
         # lastly, if the block ends in "with", it's an opening tag to further
         # thisfile-level template instructions (like setting a filename)
@@ -208,7 +220,7 @@ class ThisfileExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
             return dir_level_body_parts
         else:
             # if we're not, we have to do it ourselves
-            self.environment.fisyte.dir_level_body.extend(dir_level_body_parts)
+            self.state.dir_level_body.extend(dir_level_body_parts)
             return []
 
     def parse_for(
@@ -264,15 +276,6 @@ class ActualFilenameExtension(
 
     tag = "thisfileactualfilename"
 
-    # make Mypy happy:
-    environment: ExtendedEnvironment
-
-    def __init__(self, environment: Environment):
-        super().__init__(environment)
-
-        # storage of things we parse from extension blocks
-        environment.extend(fisyte=FisyteData())
-
     def preprocess(self, source, name, filename=None) -> str:
         if filename is None:
             raise ValueError(
@@ -299,8 +302,8 @@ class ActualFilenameExtension(
         )
 
         # save body for later
-        assert not self.environment.fisyte.actual_filename
-        self.environment.fisyte.actual_filename.extend(body)
+        assert not self.state.actual_filename
+        self.state.actual_filename.extend(body)
 
         # return nothing because the only purpose of this is to capture the
         # filename
@@ -313,15 +316,6 @@ class FilenameExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
     """
 
     tag = "filename"
-
-    # make Mypy happy:
-    environment: ExtendedEnvironment
-
-    def __init__(self, environment: Environment):
-        super().__init__(environment)
-
-        # storage of things we parse from extension blocks
-        environment.extend(fisyte=FisyteData())
 
     def parse(self, parser: Parser) -> Node | list[Node]:
         # first token is always our tag name, just sanity check & get lineno:
@@ -343,17 +337,8 @@ class FilenameExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
         return self._make_filename_call_block(body)
 
 
-class DirLevelExtension(SingleTagExtension):
+class DirLevelExtension(FisyteStateExtension, SingleTagExtension):
     tag = "dirlevel"
-
-    # make Mypy happy:
-    environment: ExtendedEnvironment
-
-    def __init__(self, environment: Environment):
-        super().__init__(environment)
-
-        # storage of things we parse from extension blocks
-        environment.extend(fisyte=FisyteData())
 
     def parse(self, parser: Parser) -> Node | list[Node]:
         # first token is always our tag name, just sanity check & get lineno:
@@ -365,7 +350,7 @@ class DirLevelExtension(SingleTagExtension):
         )
 
         # save body for later
-        self.environment.fisyte.dir_level_body.extend(body)
+        self.state.dir_level_body.extend(body)
 
         # return nothing at this point, as dirlevel contents are inserted into
         # the AST at a later stage by EnclosingExtension
@@ -383,9 +368,6 @@ class EnclosingExtension(
     """
 
     tag = "thisfilefileencl"
-
-    # make Mypy happy:
-    environment: ExtendedEnvironment
 
     def filter_stream(self, stream: TokenStream) -> Iterable[Token]:
         # short preamble to indicate this is not a normal template
@@ -414,26 +396,25 @@ class EnclosingExtension(
 
         # if there was no thisfile or dirlevel tag, insert a default one
         if not (
-            self.environment.fisyte.dir_level_body
-            or self.environment.fisyte.file_contents_receptacles
+            self.state.dir_level_body or self.state.file_contents_receptacles
         ):
             # TODO refactor with same code in ThisfileExtension? difficult...
             file_contents_receptacle: list[Node] = []
             file_callback_nodes = self._make_file_callback_nodes(
-                self.environment.fisyte.actual_filename,
+                self.state.actual_filename,
                 file_contents_receptacle,
             )
-            self.environment.fisyte.file_contents_receptacles.append(
+            self.state.file_contents_receptacles.append(
                 file_contents_receptacle
             )
-            self.environment.fisyte.dir_level_body.extend(file_callback_nodes)
+            self.state.dir_level_body.extend(file_callback_nodes)
 
         # insert this into file contents receptacles
-        for receptacle in self.environment.fisyte.file_contents_receptacles:
+        for receptacle in self.state.file_contents_receptacles:
             receptacle.extend(body)
 
         # re-insert dir-level block in place of regular file contents
-        return self.environment.fisyte.dir_level_body
+        return self.state.dir_level_body
 
 
 extensions = [

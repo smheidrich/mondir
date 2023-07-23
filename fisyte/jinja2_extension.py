@@ -1,3 +1,4 @@
+from collections import deque
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from textwrap import indent
@@ -43,6 +44,9 @@ class FisyteData:
     file_contents_receptacles: list[list[Node]] = field(default_factory=list)
     dir_level_body: list[Node] = field(default_factory=list)
     actual_filename: list[Node] = field(default_factory=list)
+    # info on parsing context (only required because Jinja's _tag_stack is
+    # private...)
+    tag_stack: deque[str] = field(default_factory=deque)
     # collecting rendered parts
     rendering_file: RenderingFile | None = None
     # final output
@@ -82,6 +86,23 @@ class FisyteStateExtension(Extension):
         Shortcut to access fisyte state (shorter than `environment.fisyte`).
         """
         return self.environment.fisyte
+
+
+class FisyteStateWithTagStackExtension(
+    SingleTagExtension, FisyteStateExtension
+):
+    def parse(self, parser: Parser) -> Node | list[Node]:
+        self.state.tag_stack.append(self.tag)
+        try:
+            return self.parse_own_tag(parser)
+        finally:
+            self.state.tag_stack.pop()
+
+    # should be abstract but metaclass already set by SingleTagExtension...
+    def parse_own_tag(self, parser: Parser) -> Node | list[Node]:
+        raise NotImplementedError(
+            "f{self.__class__} subclasses must implement parse_own_tag()"
+        )
 
 
 class ExtensionWithFileContentsCallback(FisyteStateExtension):
@@ -178,10 +199,12 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
         return "  set output to:\n" + indent(output, "    ") + "\n"
 
 
-class ThisfileExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
+class ThisfileExtension(
+    ExtensionWithFileContentsCallback, FisyteStateWithTagStackExtension
+):
     tag = "thisfile"
 
-    def parse(self, parser: Parser) -> Node | list[Node]:
+    def parse_own_tag(self, parser: Parser) -> Node | list[Node]:
         # first token is necessarily 'thisfile' tag name, sanity check & skip:
         parser.stream.expect(f"name:{self.tag}")
 
@@ -215,7 +238,7 @@ class ThisfileExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
 
         # we need to make sure the dir-level subtree is stored outside the
         # template AST so that the latter contains the contents only
-        if any(tag == "dirlevel" for tag in parser._tag_stack):
+        if "dirlevel" in self.state.tag_stack:
             # if we're already inside dirlevel tags, we have them handle this
             return dir_level_body_parts
         else:
@@ -310,19 +333,21 @@ class ActualFilenameExtension(
         return []
 
 
-class FilenameExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
+class FilenameExtension(
+    ExtensionWithFileContentsCallback, FisyteStateWithTagStackExtension
+):
     """
     Allows setting the desired output filename template.
     """
 
     tag = "filename"
 
-    def parse(self, parser: Parser) -> Node | list[Node]:
+    def parse_own_tag(self, parser: Parser) -> Node | list[Node]:
         # first token is always our tag name, just sanity check & get lineno:
         lineno = parser.stream.expect(f"name:{self.tag}").lineno
 
         # check if usage context is ok
-        if not any(tag == "thisfile" for tag in parser._tag_stack):
+        if "thisfile" not in parser._tag_stack:
             raise TemplateSyntaxError(
                 "filename tags can only be used inside thisfile tags",
                 lineno,
@@ -337,10 +362,10 @@ class FilenameExtension(ExtensionWithFileContentsCallback, SingleTagExtension):
         return self._make_filename_call_block(body)
 
 
-class DirLevelExtension(FisyteStateExtension, SingleTagExtension):
+class DirLevelExtension(FisyteStateWithTagStackExtension):
     tag = "dirlevel"
 
-    def parse(self, parser: Parser) -> Node | list[Node]:
+    def parse_own_tag(self, parser: Parser) -> Node | list[Node]:
         # first token is always our tag name, just sanity check & get lineno:
         parser.stream.expect(f"name:{self.tag}")
 

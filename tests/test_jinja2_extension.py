@@ -214,6 +214,19 @@ def test_parsing_and_storing_ast():
         "x: {{x}}"
     ),
 )
+@case(
+    name="multiple_dirlevel_with_thisfile_static_filename_in_with",
+    template_filename="template.txt",
+    source=(
+        '{% dirlevel %}{% set x = "a" %}{% thisfile with %}'
+        "{% filename %}a.txt{% endfilename %}"
+        "{% endthisfile %}{% enddirlevel %}"
+        '{% dirlevel %}{% set x = "b" %}{% thisfile with %}'
+        "{% filename %}b.txt{% endfilename %}"
+        "{% endthisfile %}{% enddirlevel %}"
+        "x: {{x}}"
+    ),
+)
 def test_render_different_ways(template_filename, source):
     """
     Test different ways of rendering the same text.

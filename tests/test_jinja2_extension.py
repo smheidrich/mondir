@@ -60,7 +60,8 @@ def test_parsing_and_storing_ast():
     # check
     assert t.environment.fisyte == FisyteData(
         file_contents_receptacles=[[]],
-        dir_level_body=[
+        dir_level_body=[],
+        standalone_thisfile=[
             For(
                 Name("_fysite_vars", "store"),
                 Filter(
@@ -331,5 +332,41 @@ def test_filename_not_allowed_outside_thisfile(source):
     with pytest.raises(
         TemplateSyntaxError,
         match="filename tags can only be used inside thisfile tags",
+    ):
+        environment.get_template("myfile")
+
+
+def test_standalone_thisfile_not_possible_after_dirlevel():
+    """
+    Test that dirlevel tags preclude subsequent standalone thisfile tags.
+
+    This behavior could also change in the future if it turns out there is a
+    good "natural" choice for what to do in this case.
+    """
+    # prepare
+    source = "{% dirlevel %}{% thisfile %}{% enddirlevel %}{% thisfile %}"
+    environment = filename_dict_loader_environment({"myfile": source})
+    # run
+    with pytest.raises(
+        TemplateSyntaxError,
+        match="standalone thisfile encountered after dirlevel tags",
+    ):
+        environment.get_template("myfile")
+
+
+def test_dirlevel_not_possible_after_standalone_thisfile():
+    """
+    Test that standalone thisfile tags preclude subsequent dirlevel tags.
+
+    This behavior could also change in the future if it turns out there is a
+    good "natural" choice for what to do in this case.
+    """
+    # prepare
+    source = "{% thisfile %}{% dirlevel %}{% thisfile %}{% enddirlevel %}"
+    environment = filename_dict_loader_environment({"myfile": source})
+    # run
+    with pytest.raises(
+        TemplateSyntaxError,
+        match="dirlevel tags encountered after standalone thisfile",
     ):
         environment.get_template("myfile")

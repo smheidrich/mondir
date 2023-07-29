@@ -44,6 +44,10 @@ class FisyteData:
     file_contents_receptacles: list[list[Node]] = field(default_factory=list)
     dir_level_body: list[Node] = field(default_factory=list)
     actual_filename: list[Node] = field(default_factory=list)
+    # instructions that would normally be inside other tags but are allowed
+    # outside (with reduced functionality) as a shortcut
+    standalone_filename: list[Node] = field(default_factory=list)  # TODO later
+    standalone_thisfile: list[Node] = field(default_factory=list)
     # info on parsing context (only required because Jinja's _tag_stack is
     # private...)
     tag_stack: deque[str] = field(default_factory=deque)
@@ -206,7 +210,7 @@ class ThisfileExtension(
 
     def parse_own_tag(self, parser: Parser) -> Node | list[Node]:
         # first token is necessarily 'thisfile' tag name, sanity check & skip:
-        parser.stream.expect(f"name:{self.tag}")
+        lineno = parser.stream.expect(f"name:{self.tag}").lineno
 
         # prepare receptacle that will hold the (non-dirlevel) template file
         # contents once we parse them at the end (we don't know them yet)...
@@ -243,7 +247,13 @@ class ThisfileExtension(
             return dir_level_body_parts
         else:
             # if we're not, we have to do it ourselves
-            self.state.dir_level_body.extend(dir_level_body_parts)
+            if self.state.dir_level_body:
+                raise TemplateSyntaxError(
+                    "standalone thisfile encountered after dirlevel tags; "
+                    "for now, these are mutually exclusive",
+                    lineno,
+                )
+            self.state.standalone_thisfile.extend(dir_level_body_parts)
             return []
 
     def parse_for(
@@ -367,12 +377,19 @@ class DirLevelExtension(FisyteStateWithTagStackExtension):
 
     def parse_own_tag(self, parser: Parser) -> Node | list[Node]:
         # first token is always our tag name, just sanity check & get lineno:
-        parser.stream.expect(f"name:{self.tag}")
+        lineno = parser.stream.expect(f"name:{self.tag}").lineno
 
         # parse body
         body = parser.parse_statements(
             (f"name:end{self.tag}",), drop_needle=True
         )
+
+        if self.state.standalone_thisfile:
+            raise TemplateSyntaxError(
+                "dirlevel tags encountered after standalone thisfile; "
+                "for now, these are mutually exclusive",
+                lineno,
+            )
 
         # save body for later
         self.state.dir_level_body.extend(body)
@@ -419,20 +436,24 @@ class EnclosingExtension(
             (f"name:end{self.tag}",), drop_needle=True
         )
 
-        # if there was no thisfile or dirlevel tag, insert a default one
-        if not (
-            self.state.dir_level_body or self.state.file_contents_receptacles
-        ):
-            # TODO refactor with same code in ThisfileExtension? difficult...
-            file_contents_receptacle: list[Node] = []
-            file_callback_nodes = self._make_file_callback_nodes(
-                self.state.actual_filename,
-                file_contents_receptacle,
-            )
-            self.state.file_contents_receptacles.append(
-                file_contents_receptacle
-            )
-            self.state.dir_level_body.extend(file_callback_nodes)
+        # if there was no dirlevel tag, insert a default one
+        if not self.state.dir_level_body:
+            # if there was no standalone thisfile tag either, insert a default
+            # one of that, too
+            if not self.state.standalone_thisfile:
+                file_contents_receptacle: list[Node] = []
+                file_callback_nodes = self._make_file_callback_nodes(
+                    self.state.actual_filename,
+                    file_contents_receptacle,
+                )
+                self.state.file_contents_receptacles.append(
+                    file_contents_receptacle
+                )
+                self.state.dir_level_body.extend(file_callback_nodes)
+            else:
+                self.state.dir_level_body.extend(
+                    self.state.standalone_thisfile
+                )
 
         # insert this into file contents receptacles
         for receptacle in self.state.file_contents_receptacles:

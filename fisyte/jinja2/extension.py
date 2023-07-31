@@ -10,8 +10,8 @@ from jinja2.lexer import Token, TokenStream
 from jinja2.nodes import CallBlock, Const, For, Name, Node, OverlayScope
 from jinja2.parser import Parser
 
-from .utils.jinja2 import SingleTagExtension
-from .utils.pseudo_list import PseudoList
+from .utils import SingleTagExtension
+from ..utils.pseudo_list import PseudoList
 
 
 @dataclass

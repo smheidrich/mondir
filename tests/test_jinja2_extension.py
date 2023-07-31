@@ -14,7 +14,7 @@ from jinja2.nodes import (
     TemplateData,
 )
 
-from fisyte.jinja2_extension import (
+from fisyte.jinja2.extension import (
     ActualFilenameExtension,
     DirLevelExtension,
     FileCallbackNodes,
@@ -22,7 +22,7 @@ from fisyte.jinja2_extension import (
     ThisfileExtension,
     extensions,
 )
-from fisyte.jinja2_loaders import FilenameDictLoader
+from fisyte.jinja2.loaders import FilenameDictLoader
 
 from .utils.parametrization import autodetect_parameters, case
 
@@ -80,7 +80,7 @@ def test_parsing_and_storing_ast():
                             CallBlock(
                                 Call(
                                     ExtensionAttribute(
-                                        "fisyte.jinja2_extension."
+                                        "fisyte.jinja2.extension."
                                         "ThisfileExtension",
                                         "_start_rendering_file",
                                     ),
@@ -97,7 +97,7 @@ def test_parsing_and_storing_ast():
                                 CallBlock(
                                     Call(
                                         ExtensionAttribute(
-                                            "fisyte.jinja2_extension."
+                                            "fisyte.jinja2.extension."
                                             "ThisfileExtension",
                                             "_filename",
                                         ),
@@ -113,7 +113,7 @@ def test_parsing_and_storing_ast():
                                 CallBlock(
                                     Call(
                                         ExtensionAttribute(
-                                            "fisyte.jinja2_extension."
+                                            "fisyte.jinja2.extension."
                                             "ThisfileExtension",
                                             "_file_contents",
                                         ),
@@ -130,7 +130,7 @@ def test_parsing_and_storing_ast():
                             CallBlock(
                                 Call(
                                     ExtensionAttribute(
-                                        "fisyte.jinja2_extension."
+                                        "fisyte.jinja2.extension."
                                         "ThisfileExtension",
                                         "_done_rendering_file",
                                     ),

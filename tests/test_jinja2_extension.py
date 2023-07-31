@@ -17,6 +17,7 @@ from jinja2.nodes import (
 from fisyte.jinja2_extension import (
     ActualFilenameExtension,
     DirLevelExtension,
+    FileCallbackNodes,
     FisyteData,
     ThisfileExtension,
     extensions,
@@ -75,7 +76,7 @@ def test_parsing_and_storing_ast():
                 [
                     OverlayScope(
                         Name("_fysite_vars", "store"),
-                        [
+                        FileCallbackNodes(
                             CallBlock(
                                 Call(
                                     ExtensionAttribute(
@@ -92,38 +93,40 @@ def test_parsing_and_storing_ast():
                                 [],
                                 [],
                             ),
-                            CallBlock(
-                                Call(
-                                    ExtensionAttribute(
-                                        "fisyte.jinja2_extension."
-                                        "ThisfileExtension",
-                                        "_filename",
+                            [
+                                CallBlock(
+                                    Call(
+                                        ExtensionAttribute(
+                                            "fisyte.jinja2_extension."
+                                            "ThisfileExtension",
+                                            "_filename",
+                                        ),
+                                        [],
+                                        [],
+                                        None,
+                                        None,
                                     ),
                                     [],
                                     [],
-                                    None,
-                                    None,
+                                    [Output([TemplateData("myfile")])],
                                 ),
-                                [],
-                                [],
-                                [Output([TemplateData("myfile")])],
-                            ),
-                            CallBlock(
-                                Call(
-                                    ExtensionAttribute(
-                                        "fisyte.jinja2_extension."
-                                        "ThisfileExtension",
-                                        "_file_contents",
+                                CallBlock(
+                                    Call(
+                                        ExtensionAttribute(
+                                            "fisyte.jinja2_extension."
+                                            "ThisfileExtension",
+                                            "_file_contents",
+                                        ),
+                                        [],
+                                        [],
+                                        None,
+                                        None,
                                     ),
                                     [],
                                     [],
-                                    None,
-                                    None,
+                                    [],
                                 ),
-                                [],
-                                [],
-                                [],
-                            ),
+                            ],
                             CallBlock(
                                 Call(
                                     ExtensionAttribute(
@@ -140,7 +143,7 @@ def test_parsing_and_storing_ast():
                                 [],
                                 [],
                             ),
-                        ],
+                        ),
                     )
                 ],
                 None,

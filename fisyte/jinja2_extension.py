@@ -1,5 +1,5 @@
 from collections import deque
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from textwrap import indent
 from typing import cast
@@ -11,6 +11,7 @@ from jinja2.nodes import CallBlock, Const, For, Name, Node, OverlayScope
 from jinja2.parser import Parser
 
 from .utils.jinja2 import SingleTagExtension
+from .utils.pseudo_list import PseudoList
 
 
 @dataclass
@@ -109,6 +110,27 @@ class FisyteStateWithTagStackExtension(
         )
 
 
+@dataclass
+class FileCallbackNodes(PseudoList):
+    start: CallBlock
+    inner: list[Node]
+    end: CallBlock
+
+    def __iter__(self) -> Iterator[Node]:
+        yield self.start
+        yield from self.inner
+        yield self.end
+
+    def __len__(self) -> int:
+        return 2 + len(self.inner)
+
+    def __getitem__(self, index_or_slice, /):
+        return (self.start, *self.inner, self.end)[index_or_slice]
+
+    def extend_inner(self, iterable: Iterable[Node]) -> None:
+        self.inner.extend(iterable)
+
+
 class ExtensionWithFileContentsCallback(FisyteStateExtension):
     """
     Base for extensions that need to create call blocks calling _file_contents.
@@ -118,13 +140,15 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
         self,
         filename_template: list[Node],
         file_contents_receptacle: list[Node],
-    ) -> list[Node]:
-        return [
-            self._make_file_rendering_start_block(),
-            self._make_filename_call_block(filename_template),
-            self._make_file_contents_call_block(file_contents_receptacle),
-            self._make_file_rendering_done_block(),
-        ]
+    ) -> FileCallbackNodes:
+        return FileCallbackNodes(
+            start=self._make_file_rendering_start_block(),
+            inner=[
+                self._make_filename_call_block(filename_template),
+                self._make_file_contents_call_block(file_contents_receptacle),
+            ],
+            end=self._make_file_rendering_done_block(),
+        )
 
     # indiv. block creation methods
 
@@ -235,10 +259,7 @@ class ThisfileExtension(
             tag_contents = parser.parse_statements(
                 (f"name:end{self.tag}",), drop_needle=True
             )
-            # TODO clean this up (e.g. wrapper around fcn):
-            last = file_callback_nodes.pop()
-            file_callback_nodes.extend(tag_contents)
-            file_callback_nodes.append(last)
+            file_callback_nodes.extend_inner(tag_contents)
 
         # we need to make sure the dir-level subtree is stored outside the
         # template AST so that the latter contains the contents only

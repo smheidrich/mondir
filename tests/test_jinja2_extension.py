@@ -110,6 +110,8 @@ def test_parsing_and_storing_ast():
                                     [],
                                     [Output([TemplateData("myfile")])],
                                 ),
+                            ],
+                            [
                                 CallBlock(
                                     Call(
                                         ExtensionAttribute(
@@ -231,6 +233,36 @@ def test_parsing_and_storing_ast():
         "x: {{x}}"
     ),
 )
+@case(
+    name="multiple_standalone_thisfile_static_filename_and_vars_in_with",
+    template_filename="template.txt",
+    source=(
+        '{% thisfile with %}{% set x = "a" %}'
+        "{% filename %}a.txt{% endfilename %}"
+        "{% endthisfile %}"
+        '{% thisfile with %}{% set x = "b" %}'
+        "{% filename %}b.txt{% endfilename %}"
+        "{% endthisfile %}"
+        "x: {{x}}"
+    ),
+)
+@case(
+    name="multiple_standalone_thisfile_template_filename_via_vars_in_with",
+    template_filename="{{ x }}.txt",
+    source=(
+        '{% thisfile with %}{% set x = "a" %}{% endthisfile %}'
+        '{% thisfile with %}{% set x = "b" %}{% endthisfile %}'
+        "x: {{x}}"
+    ),
+    # the reason this doesn't work is that the original filename gets evaluated
+    # first, so the variables from the `set` tag aren't available at that time.
+    # changing this without breaking the ability to easily override the default
+    # is possible but will make things a bit messy (e.g. one solution:
+    # evaluate original filename like now but only save result as "fallback" in
+    # case no other filename is provided by subsequent callback)
+    # TODO either fix or mention in docs
+    marks=pytest.mark.xfail(reason="doesn't work, might never - we'll see"),
+)
 def test_render_different_ways(template_filename, source):
     """
     Test different ways of rendering the same text.
@@ -296,9 +328,9 @@ def test_render_filename_using_with():
         log of operations:
         start new file
           set filename to 'myfile'
+          set filename to 'fn'
           set output to:
             hello
-          set filename to 'fn'
         done with file
         """
     )

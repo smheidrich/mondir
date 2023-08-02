@@ -31,12 +31,20 @@ class RenderingFile:
     """
 
     filename: str | None = None
+    fallback_filename: str | None = None
     contents: str | None = None
 
     def done(self) -> RenderedFile:
-        assert self.filename is not None, "bug: no filename specified"
+        assert (
+            self.fallback_filename is not None
+        ), "bug: no fallback filename specified"
         assert self.contents is not None, "bug: no contents specified"
-        return RenderedFile(self.filename, self.contents)
+        filename = (
+            self.filename
+            if self.filename is not None
+            else self.fallback_filename
+        )
+        return RenderedFile(filename, self.contents)
 
 
 @dataclass
@@ -116,6 +124,13 @@ class FileCallbackNodes(PseudoList):
     'The "start file" callback node.'
     meta: list[Node]
     "Callback nodes responsible for setting metadata (e.g. filenames)."
+    post_meta: list[Node]
+    """
+    Callback nodes that must run after `meta` but which likewise set metadata.
+
+    Currently only used for the `actual_filename` template to let it access
+    variables set by the `meta` nodes.
+    """
     content: list[Node]
     "Callback nodes responsible for setting the rendered file contents."
     end: CallBlock
@@ -124,16 +139,21 @@ class FileCallbackNodes(PseudoList):
     def __iter__(self) -> Iterator[Node]:
         yield self.start
         yield from self.meta
+        yield from self.post_meta
         yield from self.content
         yield self.end
 
     def __len__(self) -> int:
-        return 2 + len(self.meta) + len(self.content)
+        return 2 + len(self.meta) + len(self.post_meta) + len(self.content)
 
     def __getitem__(self, index_or_slice, /):
-        return (self.start, *self.meta, *self.content, self.end)[
-            index_or_slice
-        ]
+        return (
+            self.start,
+            *self.meta,
+            *self.post_meta,
+            *self.content,
+            self.end,
+        )[index_or_slice]
 
     def extend_meta(self, iterable: Iterable[Node]) -> None:
         self.meta.extend(iterable)
@@ -146,13 +166,16 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
 
     def _make_file_callback_nodes(
         self,
-        filename_template: list[Node],
+        fallback_filename_template: list[Node],
         file_contents_receptacle: list[Node],
     ) -> FileCallbackNodes:
         return FileCallbackNodes(
             start=self._make_file_rendering_start_block(),
-            meta=[
-                self._make_filename_call_block(filename_template),
+            meta=[],
+            post_meta=[
+                self._make_fallback_filename_call_block(
+                    fallback_filename_template
+                ),
             ],
             content=[
                 self._make_file_contents_call_block(file_contents_receptacle),
@@ -178,14 +201,25 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
             [],
         )
 
-    # this doesn't need a receptacle because we know the filename template
+    # these don't need receptacles because we know the filename template
     # either from the start (based on the actual filename) or at the point of
     # parsing the thisfile instruction (based on custom template there)
+
     def _make_filename_call_block(
         self, filename_template: list[Node]
     ) -> CallBlock:
         return CallBlock(
             self.call_method("_filename"),
+            [],
+            [],
+            filename_template,
+        )
+
+    def _make_fallback_filename_call_block(
+        self, filename_template: list[Node]
+    ) -> CallBlock:
+        return CallBlock(
+            self.call_method("_fallback_filename"),
             [],
             [],
             filename_template,
@@ -227,6 +261,16 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
             raise ValueError("empty filename encountered")
         self.state.rendering_file.filename = filename
         return f"  set filename to {filename!r}\n"
+
+    def _fallback_filename(self, caller: Callable[..., str]) -> str:
+        assert (
+            self.state.rendering_file is not None
+        ), "bug: fallback filename callback called but no file in progress"
+        filename = caller()
+        if not filename:
+            raise ValueError("empty filename encountered")
+        self.state.rendering_file.fallback_filename = filename
+        return f"  set fallback filename to {filename!r}\n"
 
     def _file_contents(self, caller: Callable[..., str]) -> str:
         assert (

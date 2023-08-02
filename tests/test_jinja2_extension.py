@@ -93,13 +93,14 @@ def test_parsing_and_storing_ast():
                                 [],
                                 [],
                             ),
+                            [],
                             [
                                 CallBlock(
                                     Call(
                                         ExtensionAttribute(
                                             "fisyte.jinja2.extension."
                                             "ThisfileExtension",
-                                            "_filename",
+                                            "_fallback_filename",
                                         ),
                                         [],
                                         [],
@@ -254,14 +255,6 @@ def test_parsing_and_storing_ast():
         '{% thisfile with %}{% set x = "b" %}{% endthisfile %}'
         "x: {{x}}"
     ),
-    # the reason this doesn't work is that the original filename gets evaluated
-    # first, so the variables from the `set` tag aren't available at that time.
-    # changing this without breaking the ability to easily override the default
-    # is possible but will make things a bit messy (e.g. one solution:
-    # evaluate original filename like now but only save result as "fallback" in
-    # case no other filename is provided by subsequent callback)
-    # TODO either fix or mention in docs
-    marks=pytest.mark.xfail(reason="doesn't work, might never - we'll see"),
 )
 def test_render_different_ways(template_filename, source):
     """
@@ -298,7 +291,7 @@ def test_render_static():
         rendering templates as usual doesn't make a lot of sense.
         log of operations:
         start new file
-          set filename to 'myfile'
+          set fallback filename to 'myfile'
           set output to:
             x: a
         done with file
@@ -327,8 +320,8 @@ def test_render_filename_using_with():
         rendering templates as usual doesn't make a lot of sense.
         log of operations:
         start new file
-          set filename to 'myfile'
           set filename to 'fn'
+          set fallback filename to 'myfile'
           set output to:
             hello
         done with file

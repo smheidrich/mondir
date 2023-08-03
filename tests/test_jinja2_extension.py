@@ -61,7 +61,7 @@ def test_parsing_and_storing_ast():
     # check
     assert t.environment.fisyte == FisyteData(
         file_contents_receptacles=[[]],
-        dir_level_body=[],
+        dir_level_body=None,
         standalone_thisfile=[
             For(
                 Name("_fysite_vars", "store"),
@@ -348,6 +348,20 @@ def test_render_filename_using_with():
         done with file
         """
     )
+
+
+def test_empty_dirlevel_means_no_output():
+    """
+    Test that empty dirlevel tags result in no output.
+    """
+    # prepare
+    source = "{% dirlevel %}{% enddirlevel %}"
+    environment = filename_dict_loader_environment({"myfile": source})
+    # run
+    t = environment.get_template("myfile")
+    t.render()
+    # check
+    assert t.environment.fisyte.rendered_files_map == {}
 
 
 @case(

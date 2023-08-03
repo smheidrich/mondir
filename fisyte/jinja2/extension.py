@@ -59,7 +59,7 @@ class RenderingFile:
 class FisyteData:
     # parsing
     file_contents_receptacles: list[list[Node]] = field(default_factory=list)
-    dir_level_body: list[Node] = field(default_factory=list)
+    dir_level_body: list[Node] | None = None
     actual_filename: list[Node] = field(default_factory=list)
     # instructions that would normally be inside other tags but are allowed
     # outside (with reduced functionality) as a shortcut
@@ -357,7 +357,7 @@ class ThisfileExtension(
             return dir_level_body_parts
         else:
             # if we're not, we have to do it ourselves
-            if self.state.dir_level_body:
+            if self.state.dir_level_body is not None:
                 raise TemplateSyntaxError(
                     "standalone thisfile encountered after dirlevel tags; "
                     "for now, these are mutually exclusive",
@@ -533,6 +533,8 @@ class DirLevelExtension(FisyteStateWithTagStackExtension):
             )
 
         # save body for later
+        if self.state.dir_level_body is None:
+            self.state.dir_level_body = []
         self.state.dir_level_body.extend(body)
 
         # return nothing at this point, as dirlevel contents are inserted into
@@ -578,7 +580,8 @@ class EnclosingExtension(
         )
 
         # if there was no dirlevel tag, insert a default one
-        if not self.state.dir_level_body:
+        if self.state.dir_level_body is None:
+            self.state.dir_level_body = []
             # if there was no standalone thisfile tag either, insert a default
             # one of that, too
             if not self.state.standalone_thisfile:

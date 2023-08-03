@@ -118,7 +118,7 @@ def test_parsing_and_storing_ast():
                                         ExtensionAttribute(
                                             "fisyte.jinja2.extension."
                                             "ThisfileExtension",
-                                            "_file_contents",
+                                            "_fallback_file_contents",
                                         ),
                                         [],
                                         [],
@@ -256,6 +256,27 @@ def test_parsing_and_storing_ast():
         "x: {{x}}"
     ),
 )
+@case(
+    name="multiple_standalone_thisfile_content_and_filename_in_with",
+    template_filename="{{ x }}.txt",
+    source=(
+        "{% thisfile with %}{% content %}x: a{% endcontent %}"
+        "{% filename %}a.txt{% endfilename %}{% endthisfile %}"
+        "{% thisfile with %}{% content %}x: b{% endcontent %}"
+        "{% filename %}b.txt{% endfilename %}{% endthisfile %}"
+        "x: {{x}}"
+    ),
+)
+@case(
+    name="multiple_standalone_thisfile_mixed_fully_static_and_via_var_in_with",
+    template_filename="{{ x }}.txt",
+    source=(
+        "{% thisfile with %}{% content %}x: a{% endcontent %}"
+        "{% filename %}a.txt{% endfilename %}{% endthisfile %}"
+        '{% thisfile with %}{% set x = "b" %}{% endthisfile %}'
+        "x: {{x}}"
+    ),
+)
 def test_render_different_ways(template_filename, source):
     """
     Test different ways of rendering the same text.
@@ -292,7 +313,7 @@ def test_render_static():
         log of operations:
         start new file
           set fallback filename to 'myfile'
-          set output to:
+          set fallback output to:
             x: a
         done with file
         """
@@ -322,7 +343,7 @@ def test_render_filename_using_with():
         start new file
           set filename to 'fn'
           set fallback filename to 'myfile'
-          set output to:
+          set fallback output to:
             hello
         done with file
         """

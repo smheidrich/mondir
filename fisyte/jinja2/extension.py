@@ -33,18 +33,26 @@ class RenderingFile:
     filename: str | None = None
     fallback_filename: str | None = None
     contents: str | None = None
+    fallback_contents: str | None = None
 
     def done(self) -> RenderedFile:
         assert (
             self.fallback_filename is not None
         ), "bug: no fallback filename specified"
-        assert self.contents is not None, "bug: no contents specified"
+        assert (
+            self.fallback_contents is not None
+        ), "bug: no fallback contents specified"
         filename = (
             self.filename
             if self.filename is not None
             else self.fallback_filename
         )
-        return RenderedFile(filename, self.contents)
+        contents = (
+            self.contents
+            if self.contents is not None
+            else self.fallback_contents
+        )
+        return RenderedFile(filename, contents)
 
 
 @dataclass
@@ -123,7 +131,13 @@ class FileCallbackNodes(PseudoList):
     start: CallBlock
     'The "start file" callback node.'
     meta: list[Node]
-    "Callback nodes responsible for setting metadata (e.g. filenames)."
+    """
+    Callback nodes responsible for setting metadata (e.g. filenames).
+
+    Note that, confusingly, this can *also* contain file contents, namely if
+    `contents` tags are used within `thisfile` tags. Maybe this needs a
+    rename...
+    """
     post_meta: list[Node]
     """
     Callback nodes that must run after `meta` but which likewise set metadata.
@@ -178,7 +192,9 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
                 ),
             ],
             content=[
-                self._make_file_contents_call_block(file_contents_receptacle),
+                self._make_fallback_file_contents_call_block(
+                    file_contents_receptacle
+                ),
             ],
             end=self._make_file_rendering_done_block(),
         )
@@ -235,6 +251,16 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
             file_contents_receptacle,
         )
 
+    def _make_fallback_file_contents_call_block(
+        self, file_contents_receptacle: list[Node]
+    ) -> CallBlock:
+        return CallBlock(
+            self.call_method("_fallback_file_contents"),
+            [],
+            [],
+            file_contents_receptacle,
+        )
+
     # callbacks
 
     def _start_rendering_file(self, caller: Callable[..., str]) -> str:
@@ -279,6 +305,15 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
         output = caller()
         self.state.rendering_file.contents = output
         return "  set output to:\n" + indent(output, "    ") + "\n"
+
+    def _fallback_file_contents(self, caller: Callable[..., str]) -> str:
+        assert self.state.rendering_file is not None, (
+            "bug: fallback file contents callback called but no file in "
+            "progress"
+        )
+        output = caller()
+        self.state.rendering_file.fallback_contents = output
+        return "  set fallback output to:\n" + indent(output, "    ") + "\n"
 
 
 class ThisfileExtension(
@@ -447,6 +482,37 @@ class FilenameExtension(
         return self._make_filename_call_block(body)
 
 
+class ContentExtension(
+    ExtensionWithFileContentsCallback, FisyteStateWithTagStackExtension
+):
+    """
+    Allows overriding the desired output content template.
+
+    Only usable within `thisfile ... with` tags for now.
+    """
+
+    tag = "content"
+
+    def parse_own_tag(self, parser: Parser) -> Node | list[Node]:
+        # first token is always our tag name, just sanity check & get lineno:
+        lineno = parser.stream.expect(f"name:{self.tag}").lineno
+
+        # check if usage context is ok
+        if "thisfile" not in parser._tag_stack:
+            raise TemplateSyntaxError(
+                "content tags can only be used inside thisfile tags",
+                lineno,
+            )
+
+        # parse body
+        body = parser.parse_statements(
+            (f"name:end{self.tag}",), drop_needle=True
+        )
+
+        # return block with callback that sets filename
+        return self._make_file_contents_call_block(body)
+
+
 class DirLevelExtension(FisyteStateWithTagStackExtension):
     tag = "dirlevel"
 
@@ -542,6 +608,7 @@ extensions = [
     ActualFilenameExtension,
     ThisfileExtension,
     FilenameExtension,
+    ContentExtension,
     DirLevelExtension,
     EnclosingExtension,
 ]

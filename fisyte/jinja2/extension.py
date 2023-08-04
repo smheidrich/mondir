@@ -179,9 +179,9 @@ class FileCallbackNodes(PseudoList):
         self.meta.extend(iterable)
 
 
-class ExtensionWithFileContentsCallback(FisyteStateExtension):
+class ExtensionWithFileCallbacks(FisyteStateExtension):
     """
-    Base for extensions that need to create call blocks calling _file_contents.
+    Base for extensions that need to create call blocks for setting file data.
     """
 
     def _make_file_callback_nodes(self) -> FileCallbackNodes:
@@ -234,7 +234,9 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
 
     def _make_method_call_block(
         # Callable isn't exactly right, as we only care about its __name__...
-        self, method: Callable, body: list[Node]
+        self,
+        method: Callable,
+        body: list[Node],
     ) -> CallBlock:
         return CallBlock(self.call_method(method.__name__), [], [], body)
 
@@ -294,7 +296,7 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
 
 
 class ThisfileExtension(
-    ExtensionWithFileContentsCallback, FisyteStateWithTagStackExtension
+    ExtensionWithFileCallbacks, FisyteStateWithTagStackExtension
 ):
     tag = "thisfile"
 
@@ -372,9 +374,7 @@ class ThisfileExtension(
         return [loop_node]
 
 
-class ActualFilenameExtension(
-    ExtensionWithFileContentsCallback, SingleTagExtension
-):
+class ActualFilenameExtension(ExtensionWithFileCallbacks, SingleTagExtension):
     """
     For internal use only for now.
 
@@ -418,7 +418,7 @@ class ActualFilenameExtension(
 
 
 class FilenameExtension(
-    ExtensionWithFileContentsCallback, FisyteStateWithTagStackExtension
+    ExtensionWithFileCallbacks, FisyteStateWithTagStackExtension
 ):
     """
     Allows setting the desired output filename template.
@@ -442,7 +442,7 @@ class FilenameExtension(
 
 
 class ContentExtension(
-    ExtensionWithFileContentsCallback, FisyteStateWithTagStackExtension
+    ExtensionWithFileCallbacks, FisyteStateWithTagStackExtension
 ):
     """
     Allows overriding the desired output content template.
@@ -491,9 +491,7 @@ class DirLevelExtension(FisyteStateWithTagStackExtension):
         return []
 
 
-class EnclosingExtension(
-    ExtensionWithFileContentsCallback, SingleTagExtension
-):
+class EnclosingExtension(ExtensionWithFileCallbacks, SingleTagExtension):
     """
     For internal use only.
 

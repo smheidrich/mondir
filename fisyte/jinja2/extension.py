@@ -81,6 +81,10 @@ class FisyteData:
             for rendered in self.rendered_files
         }
 
+    def set_actual_file_contents(self, contents: list[Node]):
+        for receptacle in self.file_contents_receptacles:
+            receptacle.extend(contents)
+
 
 # make Mypy happy:
 class ExtendedEnvironment(Environment):
@@ -566,9 +570,8 @@ class EnclosingExtension(
                     self.state.standalone_thisfile
                 )
 
-        # insert this into file contents receptacles
-        for receptacle in self.state.file_contents_receptacles:
-            receptacle.extend(body)
+        # insert parsed actual file contents into file contents receptacles
+        self.state.set_actual_file_contents(body)
 
         # re-insert dir-level block in place of regular file contents
         return self.state.dir_level_body

@@ -179,9 +179,7 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
     """
 
     def _make_file_callback_nodes(
-        self,
-        fallback_filename_template: list[Node],
-        file_contents_receptacle: list[Node],
+        self, fallback_filename_template: list[Node]
     ) -> FileCallbackNodes:
         return FileCallbackNodes(
             start=self._make_file_rendering_start_block(),
@@ -191,11 +189,7 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
                     fallback_filename_template
                 ),
             ],
-            content=[
-                self._make_fallback_file_contents_call_block(
-                    file_contents_receptacle
-                ),
-            ],
+            content=[self._make_fallback_file_contents_call_block()],
             end=self._make_file_rendering_done_block(),
         )
 
@@ -224,15 +218,15 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
         )
 
     def _make_file_contents_call_block(
-        self, file_contents_receptacle: list[Node]
+        self, contents: list[Node]
     ) -> CallBlock:
-        return self._make_method_call_block(
-            "_file_contents", file_contents_receptacle
-        )
+        return self._make_method_call_block("_file_contents", contents)
 
-    def _make_fallback_file_contents_call_block(
-        self, file_contents_receptacle: list[Node]
-    ) -> CallBlock:
+    def _make_fallback_file_contents_call_block(self) -> CallBlock:
+        # receptacle that will have the actual file contents inserted once we
+        # parse them at the end (we don't know them yet)...
+        file_contents_receptacle: list[Node] = []
+        self.state.file_contents_receptacles.append(file_contents_receptacle)
         return self._make_method_call_block(
             "_fallback_file_contents", file_contents_receptacle
         )
@@ -308,12 +302,9 @@ class ThisfileExtension(
         # first token is necessarily 'thisfile' tag name, sanity check & skip:
         lineno = parser.stream.expect(f"name:{self.tag}").lineno
 
-        # prepare receptacle that will hold the (non-dirlevel) template file
-        # contents once we parse them at the end (we don't know them yet)...
-        file_contents_receptacle: list[Node] = []
         # ... and a call block node that will contain them => process on render
         file_callback_nodes = self._make_file_callback_nodes(
-            self.state.actual_filename, file_contents_receptacle
+            self.state.actual_filename
         )
 
         # next we either have "for" signifying of an inline for loop...
@@ -322,8 +313,6 @@ class ThisfileExtension(
         # ... or else just the end of the tag (nothing to parse)
         else:
             dir_level_body_parts = cast(list[Node], file_callback_nodes)
-
-        self.state.file_contents_receptacles.append(file_contents_receptacle)
 
         # lastly, if the block ends in "with", it's an opening tag to further
         # thisfile-level template instructions (like setting a filename)
@@ -568,13 +557,8 @@ class EnclosingExtension(
             # if there was no standalone thisfile tag either, insert a default
             # one of that, too
             if not self.state.standalone_thisfile:
-                file_contents_receptacle: list[Node] = []
                 file_callback_nodes = self._make_file_callback_nodes(
                     self.state.actual_filename,
-                    file_contents_receptacle,
-                )
-                self.state.file_contents_receptacles.append(
-                    file_contents_receptacle
                 )
                 self.state.dir_level_body.extend(file_callback_nodes)
             else:

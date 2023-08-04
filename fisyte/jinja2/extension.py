@@ -312,9 +312,7 @@ class ThisfileExtension(
         # lastly, if the block ends in "with", it's an opening tag to further
         # thisfile-level template instructions (like setting a filename)
         if parser.stream.skip_if("name:with"):
-            tag_contents = parser.parse_statements(
-                (f"name:end{self.tag}",), drop_needle=True
-            )
+            tag_contents = self.parse_own_body(parser)
             file_callback_nodes.extend_meta(tag_contents)
 
         # we need to make sure the dir-level subtree is stored outside the
@@ -407,9 +405,7 @@ class ActualFilenameExtension(
         parser.stream.expect(f"name:{self.tag}")
 
         # parse body
-        body = parser.parse_statements(
-            (f"name:end{self.tag}",), drop_needle=True
-        )
+        body = self.parse_own_body(parser)
 
         # save body for later
         assert not self.state.actual_filename
@@ -438,9 +434,7 @@ class FilenameExtension(
             )
 
         # parse body
-        body = parser.parse_statements(
-            (f"name:end{self.tag}",), drop_needle=True
-        )
+        body = self.parse_own_body(parser)
 
         # return block with callback that sets filename
         return self._make_filename_call_block(body)
@@ -466,9 +460,7 @@ class ContentExtension(
             )
 
         # parse body
-        body = parser.parse_statements(
-            (f"name:end{self.tag}",), drop_needle=True
-        )
+        body = self.parse_own_body(parser)
 
         # return block with callback that sets filename
         return self._make_file_contents_call_block(body)
@@ -479,9 +471,7 @@ class DirLevelExtension(FisyteStateWithTagStackExtension):
 
     def parse_own_tag(self, parser: Parser, lineno: int) -> Node | list[Node]:
         # parse body
-        body = parser.parse_statements(
-            (f"name:end{self.tag}",), drop_needle=True
-        )
+        body = self.parse_own_body(parser)
 
         if self.state.standalone_thisfile:
             raise TemplateSyntaxError(
@@ -533,9 +523,7 @@ class EnclosingExtension(
         parser.stream.expect(f"name:{self.tag}").lineno
 
         # parse to end (contains entire file)
-        body = parser.parse_statements(
-            (f"name:end{self.tag}",), drop_needle=True
-        )
+        body = self.parse_own_body(parser)
 
         # if there was no dirlevel tag, insert a default one
         if self.state.dir_level_body is None:

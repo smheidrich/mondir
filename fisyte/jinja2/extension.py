@@ -72,7 +72,7 @@ class FisyteData:
     rendering_file: RenderingFile | None = None
     # final output
     rendered_files: list[RenderedFile] = field(default_factory=list)
-    "Mapping from filenames to rendered content"
+    "Final rendered files"
 
     @property
     def rendered_files_map(self) -> dict[str, str]:

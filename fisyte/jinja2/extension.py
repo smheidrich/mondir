@@ -184,17 +184,11 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
     Base for extensions that need to create call blocks calling _file_contents.
     """
 
-    def _make_file_callback_nodes(
-        self, fallback_filename_template: list[Node]
-    ) -> FileCallbackNodes:
+    def _make_file_callback_nodes(self) -> FileCallbackNodes:
         return FileCallbackNodes(
             start=self._make_file_rendering_start_block(),
             meta=[],
-            post_meta=[
-                self._make_fallback_filename_call_block(
-                    fallback_filename_template
-                ),
-            ],
+            post_meta=[self._make_fallback_filename_call_block()],
             content=[self._make_fallback_file_contents_call_block()],
             end=self._make_file_rendering_done_block(),
         )
@@ -216,11 +210,10 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
     ) -> CallBlock:
         return self._make_method_call_block("_filename", filename_template)
 
-    def _make_fallback_filename_call_block(
-        self, filename_template: list[Node]
-    ) -> CallBlock:
+    def _make_fallback_filename_call_block(self) -> CallBlock:
         return self._make_method_call_block(
-            "_fallback_filename", filename_template
+            "_fallback_filename",
+            self.state.actual_filename,
         )
 
     def _make_file_contents_call_block(
@@ -306,9 +299,7 @@ class ThisfileExtension(
 
     def parse_own_tag(self, parser: Parser, lineno: int) -> Node | list[Node]:
         # nodes w/ call blocks that output the rendered file on render
-        file_callback_nodes = self._make_file_callback_nodes(
-            self.state.actual_filename
-        )
+        file_callback_nodes = self._make_file_callback_nodes()
 
         # initial tag name is already parsed, so next we either have "for"
         # signifying of an inline for loop...
@@ -552,9 +543,7 @@ class EnclosingExtension(
             # if there was no standalone thisfile tag either, insert a default
             # one of that, too
             if not self.state.standalone_thisfile:
-                file_callback_nodes = self._make_file_callback_nodes(
-                    self.state.actual_filename,
-                )
+                file_callback_nodes = self._make_file_callback_nodes()
                 self.state.dir_level_body.extend(file_callback_nodes)
             else:
                 self.state.dir_level_body.extend(

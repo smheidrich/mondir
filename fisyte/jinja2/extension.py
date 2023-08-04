@@ -196,10 +196,10 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
     # indiv. block creation methods
 
     def _make_file_rendering_start_block(self) -> CallBlock:
-        return self._make_method_call_block("_start_rendering_file", [])
+        return self._make_method_call_block(self._start_rendering_file, [])
 
     def _make_file_rendering_done_block(self) -> CallBlock:
-        return self._make_method_call_block("_done_rendering_file", [])
+        return self._make_method_call_block(self._done_rendering_file, [])
 
     # these don't need receptacles because we know the filename template
     # either from the start (based on the actual filename) or at the point of
@@ -208,18 +208,18 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
     def _make_filename_call_block(
         self, filename_template: list[Node]
     ) -> CallBlock:
-        return self._make_method_call_block("_filename", filename_template)
+        return self._make_method_call_block(self._filename, filename_template)
 
     def _make_fallback_filename_call_block(self) -> CallBlock:
         return self._make_method_call_block(
-            "_fallback_filename",
+            self._fallback_filename,
             self.state.actual_filename,
         )
 
     def _make_file_contents_call_block(
         self, contents: list[Node]
     ) -> CallBlock:
-        return self._make_method_call_block("_file_contents", contents)
+        return self._make_method_call_block(self._file_contents, contents)
 
     def _make_fallback_file_contents_call_block(self) -> CallBlock:
         # receptacle that will have the actual file contents inserted once we
@@ -227,15 +227,16 @@ class ExtensionWithFileContentsCallback(FisyteStateExtension):
         file_contents_receptacle: list[Node] = []
         self.state.file_contents_receptacles.append(file_contents_receptacle)
         return self._make_method_call_block(
-            "_fallback_file_contents", file_contents_receptacle
+            self._fallback_file_contents, file_contents_receptacle
         )
 
     # shortcut for creating ^
 
     def _make_method_call_block(
-        self, method_name: str, body: list[Node]
+        # Callable isn't exactly right, as we only care about its __name__...
+        self, method: Callable, body: list[Node]
     ) -> CallBlock:
-        return CallBlock(self.call_method(method_name), [], [], body)
+        return CallBlock(self.call_method(method.__name__), [], [], body)
 
     # callbacks
 

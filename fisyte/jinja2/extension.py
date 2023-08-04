@@ -119,12 +119,14 @@ class FisyteStateWithTagStackExtension(
     def parse(self, parser: Parser) -> Node | list[Node]:
         self.state.tag_stack.append(self.tag)
         try:
-            return self.parse_own_tag(parser)
+            # first token is necessarily own tag name, get lineno & skip:
+            lineno = parser.stream.expect(f"name:{self.tag}").lineno
+            return self.parse_own_tag(parser, lineno)
         finally:
             self.state.tag_stack.pop()
 
     # should be abstract but metaclass already set by SingleTagExtension...
-    def parse_own_tag(self, parser: Parser) -> Node | list[Node]:
+    def parse_own_tag(self, parser: Parser, lineno: int) -> Node | list[Node]:
         raise NotImplementedError(
             "f{self.__class__} subclasses must implement parse_own_tag()"
         )
@@ -302,16 +304,14 @@ class ThisfileExtension(
 ):
     tag = "thisfile"
 
-    def parse_own_tag(self, parser: Parser) -> Node | list[Node]:
-        # first token is necessarily 'thisfile' tag name, sanity check & skip:
-        lineno = parser.stream.expect(f"name:{self.tag}").lineno
-
-        # ... and a call block node that will contain them => process on render
+    def parse_own_tag(self, parser: Parser, lineno: int) -> Node | list[Node]:
+        # nodes w/ call blocks that output the rendered file on render
         file_callback_nodes = self._make_file_callback_nodes(
             self.state.actual_filename
         )
 
-        # next we either have "for" signifying of an inline for loop...
+        # initial tag name is already parsed, so next we either have "for"
+        # signifying of an inline for loop...
         if parser.stream.skip_if("name:for"):
             dir_level_body_parts = self.parse_for(parser, file_callback_nodes)
         # ... or else just the end of the tag (nothing to parse)
@@ -438,10 +438,7 @@ class FilenameExtension(
 
     tag = "filename"
 
-    def parse_own_tag(self, parser: Parser) -> Node | list[Node]:
-        # first token is always our tag name, just sanity check & get lineno:
-        lineno = parser.stream.expect(f"name:{self.tag}").lineno
-
+    def parse_own_tag(self, parser: Parser, lineno: int) -> Node | list[Node]:
         # check if usage context is ok
         if "thisfile" not in parser._tag_stack:
             raise TemplateSyntaxError(
@@ -469,10 +466,7 @@ class ContentExtension(
 
     tag = "content"
 
-    def parse_own_tag(self, parser: Parser) -> Node | list[Node]:
-        # first token is always our tag name, just sanity check & get lineno:
-        lineno = parser.stream.expect(f"name:{self.tag}").lineno
-
+    def parse_own_tag(self, parser: Parser, lineno: int) -> Node | list[Node]:
         # check if usage context is ok
         if "thisfile" not in parser._tag_stack:
             raise TemplateSyntaxError(
@@ -492,10 +486,7 @@ class ContentExtension(
 class DirLevelExtension(FisyteStateWithTagStackExtension):
     tag = "dirlevel"
 
-    def parse_own_tag(self, parser: Parser) -> Node | list[Node]:
-        # first token is always our tag name, just sanity check & get lineno:
-        lineno = parser.stream.expect(f"name:{self.tag}").lineno
-
+    def parse_own_tag(self, parser: Parser, lineno: int) -> Node | list[Node]:
         # parse body
         body = parser.parse_statements(
             (f"name:end{self.tag}",), drop_needle=True

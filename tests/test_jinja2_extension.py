@@ -364,72 +364,53 @@ def test_empty_dirlevel_means_no_output():
     assert t.environment.fisyte.rendered_files_map == {}
 
 
+# Test that specifying filenames outside thisfile tags is not allowed.
+# This behavior might change in the future, but that should happen by a
+# conscious decision, not introduction of a bug - hence this test.
 @case(
-    name="no_dirlevel",
+    name="standalone_filename_no_dirlevel",
     source="{% thisfile %}{% filename %}fn{% endfilename %}hello",
+    error="filename tags can only be used inside thisfile tags",
 )
 @case(
-    name="inside_dirlevel",
+    name="standalone_filename_inside_dirlevel",
     source=(
         "{% dirlevel %}{% thisfile %}{% filename %}fn{% endfilename %}"
         "{% enddirlevel %}hello"
     ),
+    error="filename tags can only be used inside thisfile tags",
 )
 @case(
-    name="outside_dirlevel",
+    name="standalone_filename_outside_dirlevel",
     source=(
         "{% dirlevel %}{% thisfile %}{% enddirlevel %}"
         "{% filename %}fn{% endfilename %}hello"
     ),
+    error="filename tags can only be used inside thisfile tags",
 )
-def test_filename_not_allowed_outside_thisfile(source):
+# Test that dirlevel and standalone thisfile tags preclude one another, no
+# matter which comes first.
+# This behavior could also change in the future if it turns out there is a
+# good "natural" choice for what to do in this case.
+@case(
+    name="standalone_thisfile_not_possible_after_dirlevel",
+    source="{% dirlevel %}{% thisfile %}{% enddirlevel %}{% thisfile %}",
+    error="standalone thisfile encountered after dirlevel tags",
+)
+@case(
+    name="dirlevel_not_possible_after_standalone_thisfile",
+    source="{% thisfile %}{% dirlevel %}{% thisfile %}{% enddirlevel %}",
+    error="dirlevel tags encountered after standalone thisfile",
+)
+def test_template_syntax_errors(source, error):
     """
-    Test that specifying filenames outside thisfile tags is not allowed.
+    Test that various kinds of invalid usage raise exceptions.
 
-    This behavior might change in the future, but that should happen by a
-    conscious decision, not introduction of a bug - hence this test.
+    Grouped together in one test for DRY reasons, not necessarily because these
+    cases have much to do with one another.
     """
     # prepare
     environment = filename_dict_loader_environment({"myfile": source})
     # run
-    with pytest.raises(
-        TemplateSyntaxError,
-        match="filename tags can only be used inside thisfile tags",
-    ):
-        environment.get_template("myfile")
-
-
-def test_standalone_thisfile_not_possible_after_dirlevel():
-    """
-    Test that dirlevel tags preclude subsequent standalone thisfile tags.
-
-    This behavior could also change in the future if it turns out there is a
-    good "natural" choice for what to do in this case.
-    """
-    # prepare
-    source = "{% dirlevel %}{% thisfile %}{% enddirlevel %}{% thisfile %}"
-    environment = filename_dict_loader_environment({"myfile": source})
-    # run
-    with pytest.raises(
-        TemplateSyntaxError,
-        match="standalone thisfile encountered after dirlevel tags",
-    ):
-        environment.get_template("myfile")
-
-
-def test_dirlevel_not_possible_after_standalone_thisfile():
-    """
-    Test that standalone thisfile tags preclude subsequent dirlevel tags.
-
-    This behavior could also change in the future if it turns out there is a
-    good "natural" choice for what to do in this case.
-    """
-    # prepare
-    source = "{% thisfile %}{% dirlevel %}{% thisfile %}{% enddirlevel %}"
-    environment = filename_dict_loader_environment({"myfile": source})
-    # run
-    with pytest.raises(
-        TemplateSyntaxError,
-        match="dirlevel tags encountered after standalone thisfile",
-    ):
+    with pytest.raises(TemplateSyntaxError, match=error):
         environment.get_template("myfile")

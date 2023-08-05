@@ -364,13 +364,47 @@ def test_empty_dirlevel_means_no_output():
     assert t.environment.fisyte.rendered_files_map == {}
 
 
-# Test that specifying filenames outside thisfile tags is not allowed.
+def test_standalone_filename():
+    """
+    Test that standalone (i.e. top-level) filename tags work.
+    """
+    # prepare
+    source = (
+        "{% filename %}differentname{% endfilename %}"
+        '{% set x = "a" %}x: {{ x }}'
+    )
+    environment = filename_dict_loader_environment({"myfile": source})
+    # run
+    t = environment.get_template("myfile")
+    t.render()
+    # check
+    assert t.environment.fisyte.rendered_files_map == {"differentname": "x: a"}
+
+
+@autodetect_parameters()
+# Test that standalone filename and thisfile or dirlevel tags are mutually
+# exclusive.
 # This behavior might change in the future, but that should happen by a
 # conscious decision, not introduction of a bug - hence this test.
 @case(
-    name="standalone_filename_no_dirlevel",
+    name="standalone_filename_not_possible_after_thisfile",
     source="{% thisfile %}{% filename %}fn{% endfilename %}hello",
-    error="filename tags can only be used inside thisfile tags",
+    error="standalone filename encountered after thisfile",
+)
+@case(
+    name="thisfile_not_possible_after_standalone_filename",
+    source="{% filename %}fn{% endfilename %}{% thisfile %}hello",
+    error="thisfile encountered after standalone filename",
+)
+@case(
+    name="standalone_filename_not_possible_after_dirlevel",
+    source="{% dirlevel %}{% enddirlevel %}{% filename %}fn{% endfilename %}",
+    error="standalone filename encountered after dirlevel",
+)
+@case(
+    name="dirlevel_not_possible_after_standalone_filename",
+    source="{% filename %}fn{% endfilename %}{% dirlevel %}{% enddirlevel %}",
+    error="dirlevel encountered after standalone filename",
 )
 @case(
     name="standalone_filename_inside_dirlevel",
@@ -378,15 +412,7 @@ def test_empty_dirlevel_means_no_output():
         "{% dirlevel %}{% thisfile %}{% filename %}fn{% endfilename %}"
         "{% enddirlevel %}hello"
     ),
-    error="filename tags can only be used inside thisfile tags",
-)
-@case(
-    name="standalone_filename_outside_dirlevel",
-    source=(
-        "{% dirlevel %}{% thisfile %}{% enddirlevel %}"
-        "{% filename %}fn{% endfilename %}hello"
-    ),
-    error="filename tags can only be used inside thisfile tags",
+    error="filename tags can't be used outside thisfile in dirlevel tags",
 )
 # Test that dirlevel and standalone thisfile tags preclude one another, no
 # matter which comes first.

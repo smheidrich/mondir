@@ -59,11 +59,14 @@ class RenderingFile:
 class FisyteData:
     # parsing
     file_contents_receptacles: list[list[Node]] = field(default_factory=list)
+    # note: unlike the other two top-level callback node holders below
+    # (standalone_*), this one needs a distinction between having never been
+    # called (None) and having been called but without contents ([])
     dir_level_body: list[Node] | None = None
     actual_filename: list[Node] = field(default_factory=list)
     # instructions that would normally be inside other tags but are allowed
     # outside (with reduced functionality) as a shortcut
-    standalone_filename: list[Node] = field(default_factory=list)  # TODO later
+    standalone_filename: list[Node] = field(default_factory=list)
     standalone_thisfile: list[Node] = field(default_factory=list)
     # info on parsing context (only required because Jinja's _tag_stack is
     # private...)
@@ -301,6 +304,13 @@ class ThisfileExtension(
     tag = "thisfile"
 
     def parse_own_tag(self, parser: Parser, lineno: int) -> Node | list[Node]:
+        # check obvious usage context incompatibilities first
+        if self.state.standalone_filename:
+            raise TemplateSyntaxError(
+                "thisfile encountered after standalone filename",
+                lineno,
+            )
+
         # nodes w/ call blocks that output the rendered file on render
         file_callback_nodes = self._make_file_callback_nodes()
 
@@ -427,18 +437,34 @@ class FilenameExtension(
     tag = "filename"
 
     def parse_own_tag(self, parser: Parser, lineno: int) -> Node | list[Node]:
-        # check if usage context is ok
-        if "thisfile" not in parser._tag_stack:
-            raise TemplateSyntaxError(
-                "filename tags can only be used inside thisfile tags",
-                lineno,
-            )
-
         # parse body
         body = self.parse_own_body(parser)
 
-        # return block with callback that sets filename
-        return self._make_filename_call_block(body)
+        # make block with callback that sets filename
+        call_block = self._make_filename_call_block(body)
+
+        # what exactly we do with that depends on usage context:
+        if "thisfile" in self.state.tag_stack:
+            return call_block
+        elif "dirlevel" in self.state.tag_stack:
+            raise TemplateSyntaxError(
+                "filename tags can't be used outside thisfile in dirlevel "
+                "tags",
+                lineno,
+            )
+        else:
+            if self.state.standalone_thisfile:
+                raise TemplateSyntaxError(
+                    "standalone filename encountered after thisfile",
+                    lineno,
+                )
+            if self.state.dir_level_body is not None:
+                raise TemplateSyntaxError(
+                    "standalone filename encountered after dirlevel",
+                    lineno,
+                )
+            self.state.standalone_filename = [call_block]
+            return []
 
 
 class ContentExtension(
@@ -471,15 +497,21 @@ class DirLevelExtension(FisyteStateWithTagStackExtension):
     tag = "dirlevel"
 
     def parse_own_tag(self, parser: Parser, lineno: int) -> Node | list[Node]:
-        # parse body
-        body = self.parse_own_body(parser)
-
+        # check obvious usage context incompatibilities first
         if self.state.standalone_thisfile:
             raise TemplateSyntaxError(
                 "dirlevel tags encountered after standalone thisfile; "
                 "for now, these are mutually exclusive",
                 lineno,
             )
+        if self.state.standalone_filename:
+            raise TemplateSyntaxError(
+                "dirlevel encountered after standalone filename",
+                lineno,
+            )
+
+        # parse body
+        body = self.parse_own_body(parser)
 
         # save body for later
         if self.state.dir_level_body is None:
@@ -531,6 +563,10 @@ class EnclosingExtension(ExtensionWithFileCallbacks, SingleTagExtension):
             # one of that, too
             if not self.state.standalone_thisfile:
                 file_callback_nodes = self._make_file_callback_nodes()
+                if self.state.standalone_filename:
+                    file_callback_nodes.extend_meta(
+                        self.state.standalone_filename
+                    )
                 self.state.dir_level_body.extend(file_callback_nodes)
             else:
                 self.state.dir_level_body.extend(

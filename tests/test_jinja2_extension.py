@@ -382,6 +382,24 @@ def test_standalone_filename():
 
 
 @autodetect_parameters()
+# Obvious nonsense: inverted nesting order
+@case(
+    name="dirlevel_not_possible_in_thisfile",
+    source="{% thisfile with %}{% dirlevel %}{% enddirlevel %}"
+    "{% endthisfile %}hello",
+    error="dirlevel tags encountered inside thisfile tags",
+)
+@case(
+    name="dirlevel_not_possible_in_filename",
+    source="{% filename %}{% dirlevel %}{% enddirlevel %}{% endfilename %}hi",
+    error="dirlevel tags encountered inside filename tags",
+)
+@case(
+    name="thisfile_not_possible_in_filename",
+    source="{% filename %}{% thisfile with %}{% endthisfile %}"
+    "{% endfilename %}hi",
+    error="thisfile tags encountered inside filename tags",
+)
 # Test that standalone filename and thisfile or dirlevel tags are mutually
 # exclusive.
 # This behavior might change in the future, but that should happen by a
@@ -406,6 +424,7 @@ def test_standalone_filename():
     source="{% filename %}fn{% endfilename %}{% dirlevel %}{% enddirlevel %}",
     error="dirlevel encountered after standalone filename",
 )
+# Other filename related tests
 @case(
     name="standalone_filename_inside_dirlevel",
     source=(

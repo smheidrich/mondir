@@ -307,7 +307,14 @@ class ThisfileExtension(
         # check obvious usage context incompatibilities first
         if self.state.standalone_filename:
             raise TemplateSyntaxError(
-                "thisfile encountered after standalone filename",
+                "thisfile encountered after standalone filename; "
+                "for now, these are mutually exclusive",
+                lineno,
+            )
+        if "filename" in self.state.tag_stack:
+            raise TemplateSyntaxError(
+                "thisfile tags encountered inside filename tags; "
+                "that doesn't make any sense, so the template is invalid",
                 lineno,
             )
 
@@ -455,12 +462,14 @@ class FilenameExtension(
         else:
             if self.state.standalone_thisfile:
                 raise TemplateSyntaxError(
-                    "standalone filename encountered after thisfile",
+                    "standalone filename encountered after thisfile; "
+                    "for now, these are mutually exclusive",
                     lineno,
                 )
             if self.state.dir_level_body is not None:
                 raise TemplateSyntaxError(
-                    "standalone filename encountered after dirlevel",
+                    "standalone filename encountered after dirlevel; "
+                    "for now, these are mutually exclusive",
                     lineno,
                 )
             self.state.standalone_filename = [call_block]
@@ -506,7 +515,20 @@ class DirLevelExtension(FisyteStateWithTagStackExtension):
             )
         if self.state.standalone_filename:
             raise TemplateSyntaxError(
-                "dirlevel encountered after standalone filename",
+                "dirlevel encountered after standalone filename; "
+                "for now, these are mutually exclusive",
+                lineno,
+            )
+        if "filename" in self.state.tag_stack:
+            raise TemplateSyntaxError(
+                "dirlevel tags encountered inside filename tags; "
+                "that doesn't make any sense, so the template is invalid",
+                lineno,
+            )
+        if "thisfile" in self.state.tag_stack:
+            raise TemplateSyntaxError(
+                "dirlevel tags encountered inside thisfile tags; "
+                "that doesn't make any sense, so the template is invalid",
                 lineno,
             )
 

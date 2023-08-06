@@ -24,7 +24,7 @@ from fisyte.jinja2.extension import (
 )
 from fisyte.jinja2.loaders import FilenameDictLoader
 
-from .utils.parametrization import autodetect_parameters, case
+from ..utils.parametrization import autodetect_parameters, case
 
 
 def filename_dict_loader_environment(mapping, extensions=extensions):

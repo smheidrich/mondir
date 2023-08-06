@@ -82,7 +82,7 @@ def test_parsing_and_storing_ast():
                                     ExtensionAttribute(
                                         "fisyte.jinja2.extension."
                                         "ThisfileExtension",
-                                        "_start_rendering_file",
+                                        "start_rendering_file",
                                     ),
                                     [],
                                     [],
@@ -100,7 +100,7 @@ def test_parsing_and_storing_ast():
                                         ExtensionAttribute(
                                             "fisyte.jinja2.extension."
                                             "ThisfileExtension",
-                                            "_fallback_filename",
+                                            "set_fallback_filename",
                                         ),
                                         [],
                                         [],
@@ -118,7 +118,7 @@ def test_parsing_and_storing_ast():
                                         ExtensionAttribute(
                                             "fisyte.jinja2.extension."
                                             "ThisfileExtension",
-                                            "_fallback_file_contents",
+                                            "set_fallback_file_contents",
                                         ),
                                         [],
                                         [],
@@ -135,7 +135,7 @@ def test_parsing_and_storing_ast():
                                     ExtensionAttribute(
                                         "fisyte.jinja2.extension."
                                         "ThisfileExtension",
-                                        "_done_rendering_file",
+                                        "done_rendering_file",
                                     ),
                                     [],
                                     [],

@@ -187,50 +187,50 @@ class ExtensionWithFileCallbacks(FisyteStateExtension):
     Base for extensions that need to create call blocks for setting file data.
     """
 
-    def _make_file_callback_nodes(self) -> FileCallbackNodes:
+    def make_file_callback_nodes(self) -> FileCallbackNodes:
         return FileCallbackNodes(
-            start=self._make_file_rendering_start_block(),
+            start=self.make_file_rendering_start_block(),
             meta=[],
-            post_meta=[self._make_fallback_filename_call_block()],
-            content=[self._make_fallback_file_contents_call_block()],
-            end=self._make_file_rendering_done_block(),
+            post_meta=[self.make_fallback_filename_call_block()],
+            content=[self.make_fallback_file_contents_call_block()],
+            end=self.make_file_rendering_done_block(),
         )
 
     # indiv. block creation methods
 
-    def _make_file_rendering_start_block(self) -> CallBlock:
-        return self._make_method_call_block(self._start_rendering_file, [])
+    def make_file_rendering_start_block(self) -> CallBlock:
+        return self._make_method_call_block(self.start_rendering_file, [])
 
-    def _make_file_rendering_done_block(self) -> CallBlock:
-        return self._make_method_call_block(self._done_rendering_file, [])
+    def make_file_rendering_done_block(self) -> CallBlock:
+        return self._make_method_call_block(self.done_rendering_file, [])
 
     # these don't need receptacles because we know the filename template
     # either from the start (based on the actual filename) or at the point of
     # parsing the thisfile instruction (based on custom template there)
 
-    def _make_filename_call_block(
+    def make_filename_call_block(
         self, filename_template: list[Node]
     ) -> CallBlock:
-        return self._make_method_call_block(self._filename, filename_template)
-
-    def _make_fallback_filename_call_block(self) -> CallBlock:
         return self._make_method_call_block(
-            self._fallback_filename,
+            self.set_filename, filename_template
+        )
+
+    def make_fallback_filename_call_block(self) -> CallBlock:
+        return self._make_method_call_block(
+            self.set_fallback_filename,
             self.state.actual_filename,
         )
 
-    def _make_file_contents_call_block(
-        self, contents: list[Node]
-    ) -> CallBlock:
-        return self._make_method_call_block(self._file_contents, contents)
+    def make_file_contents_call_block(self, contents: list[Node]) -> CallBlock:
+        return self._make_method_call_block(self.set_file_contents, contents)
 
-    def _make_fallback_file_contents_call_block(self) -> CallBlock:
+    def make_fallback_file_contents_call_block(self) -> CallBlock:
         # receptacle that will have the actual file contents inserted once we
         # parse them at the end (we don't know them yet)...
         file_contents_receptacle: list[Node] = []
         self.state.file_contents_receptacles.append(file_contents_receptacle)
         return self._make_method_call_block(
-            self._fallback_file_contents, file_contents_receptacle
+            self.set_fallback_file_contents, file_contents_receptacle
         )
 
     # shortcut for creating ^
@@ -245,14 +245,14 @@ class ExtensionWithFileCallbacks(FisyteStateExtension):
 
     # callbacks
 
-    def _start_rendering_file(self, caller: Callable[..., str]) -> str:
+    def start_rendering_file(self, caller: Callable[..., str]) -> str:
         assert (
             self.state.rendering_file is None
         ), "bug: started rendering new file before previous was done"
         self.state.rendering_file = RenderingFile()
         return "start new file\n"
 
-    def _done_rendering_file(self, caller: Callable[..., str]) -> str:
+    def done_rendering_file(self, caller: Callable[..., str]) -> str:
         assert (
             self.state.rendering_file is not None
         ), "bug: file rendering done callback called but no file in progress"
@@ -260,7 +260,7 @@ class ExtensionWithFileCallbacks(FisyteStateExtension):
         self.state.rendering_file = None
         return "done with file\n"
 
-    def _filename(self, caller: Callable[..., str]) -> str:
+    def set_filename(self, caller: Callable[..., str]) -> str:
         assert (
             self.state.rendering_file is not None
         ), "bug: filename callback called but no file in progress"
@@ -270,7 +270,7 @@ class ExtensionWithFileCallbacks(FisyteStateExtension):
         self.state.rendering_file.filename = filename
         return f"  set filename to {filename!r}\n"
 
-    def _fallback_filename(self, caller: Callable[..., str]) -> str:
+    def set_fallback_filename(self, caller: Callable[..., str]) -> str:
         assert (
             self.state.rendering_file is not None
         ), "bug: fallback filename callback called but no file in progress"
@@ -280,7 +280,7 @@ class ExtensionWithFileCallbacks(FisyteStateExtension):
         self.state.rendering_file.fallback_filename = filename
         return f"  set fallback filename to {filename!r}\n"
 
-    def _file_contents(self, caller: Callable[..., str]) -> str:
+    def set_file_contents(self, caller: Callable[..., str]) -> str:
         assert (
             self.state.rendering_file is not None
         ), "bug: file contents callback called but no file in progress"
@@ -288,7 +288,7 @@ class ExtensionWithFileCallbacks(FisyteStateExtension):
         self.state.rendering_file.contents = output
         return "  set output to:\n" + indent(output, "    ") + "\n"
 
-    def _fallback_file_contents(self, caller: Callable[..., str]) -> str:
+    def set_fallback_file_contents(self, caller: Callable[..., str]) -> str:
         assert self.state.rendering_file is not None, (
             "bug: fallback file contents callback called but no file in "
             "progress"
@@ -312,7 +312,7 @@ class ThisfileExtension(
             )
 
         # nodes w/ call blocks that output the rendered file on render
-        file_callback_nodes = self._make_file_callback_nodes()
+        file_callback_nodes = self.make_file_callback_nodes()
 
         # initial tag name is already parsed, so next we either have "for"
         # signifying of an inline for loop...
@@ -441,7 +441,7 @@ class FilenameExtension(
         body = self.parse_own_body(parser)
 
         # make block with callback that sets filename
-        call_block = self._make_filename_call_block(body)
+        call_block = self.make_filename_call_block(body)
 
         # what exactly we do with that depends on usage context:
         if "thisfile" in self.state.tag_stack:
@@ -490,7 +490,7 @@ class ContentExtension(
         body = self.parse_own_body(parser)
 
         # return block with callback that sets filename
-        return self._make_file_contents_call_block(body)
+        return self.make_file_contents_call_block(body)
 
 
 class DirLevelExtension(FisyteStateWithTagStackExtension):
@@ -562,7 +562,7 @@ class EnclosingExtension(ExtensionWithFileCallbacks, SingleTagExtension):
             # if there was no standalone thisfile tag either, insert a default
             # one of that, too
             if not self.state.standalone_thisfile:
-                file_callback_nodes = self._make_file_callback_nodes()
+                file_callback_nodes = self.make_file_callback_nodes()
                 if self.state.standalone_filename:
                     file_callback_nodes.extend_meta(
                         self.state.standalone_filename

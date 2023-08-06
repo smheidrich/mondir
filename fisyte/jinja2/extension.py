@@ -1,6 +1,7 @@
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
+from pathlib import Path
 from textwrap import indent
 from typing import cast
 
@@ -42,11 +43,14 @@ class RenderingFile:
         assert (
             self.fallback_contents is not None
         ), "bug: no fallback contents specified"
-        filename = (
-            self.filename
-            if self.filename is not None
-            else self.fallback_filename
-        )
+        if self.filename is not None:
+            filename = self.filename
+            # re-prepend directory, if any, of original filename
+            original_filename_path = Path(self.fallback_filename)
+            if len(original_filename_path.parts) > 1:
+                filename = str(original_filename_path.parent / filename)
+        else:
+            filename = self.fallback_filename
         contents = (
             self.contents
             if self.contents is not None

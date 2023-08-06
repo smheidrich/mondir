@@ -381,6 +381,36 @@ def test_standalone_filename():
     assert t.environment.fisyte.rendered_files_map == {"differentname": "x: a"}
 
 
+def test_filename_keeps_preceding_path_intact():
+    """
+    Test that filename directives don't change the file's parent path.
+    """
+    # prepare
+    source = "{% filename %}differentname{% endfilename %}hello"
+    environment = filename_dict_loader_environment({"mydir/myfile": source})
+    # run
+    t = environment.get_template("mydir/myfile")
+    t.render()
+    # check
+    assert t.environment.fisyte.rendered_files_map == {
+        "mydir/differentname": "hello"
+    }
+
+
+def test_actual_filename_keeps_preceding_path_intact():
+    """
+    Test correct parent path in absence of explicit filename directive.
+    """
+    # prepare
+    source = "hello"
+    environment = filename_dict_loader_environment({"mydir/myfile": source})
+    # run
+    t = environment.get_template("mydir/myfile")
+    t.render()
+    # check
+    assert t.environment.fisyte.rendered_files_map == {"mydir/myfile": "hello"}
+
+
 @autodetect_parameters()
 # Obvious nonsense: inverted nesting order
 @case(

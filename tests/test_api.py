@@ -1,14 +1,23 @@
+from importlib import resources
 from textwrap import dedent
 
 from parametrization import pytest
 
 from fisyte.api import DirTemplate
 
+package_name = "fisyte"
 
-def test_basic_rendering(tmp_path):
-    DirTemplate(
-        "examples/many-modules-1",
-    ).render(
+
+@pytest.fixture(scope="module")
+def example1_dir():
+    with resources.as_file(
+        resources.files("fisyte_resources_anchor") / "examples/many-modules-1"
+    ) as p:
+        yield p
+
+
+def test_basic_rendering(example1_dir, tmp_path):
+    DirTemplate(example1_dir).render(
         tmp_path,
         modules=[
             {
@@ -52,8 +61,8 @@ def test_basic_rendering(tmp_path):
     assert len(list(tmp_path.iterdir())) == 2  # ensure no other files present
 
 
-def test_overwrite_protection(tmp_path):
-    t = DirTemplate("examples/many-modules-1")
+def test_overwrite_protection(example1_dir, tmp_path):
+    t = DirTemplate(example1_dir)
     t.render(tmp_path, modules=[{"module_name": "greeter"}])
     with pytest.raises(FileExistsError):
         t.render(tmp_path, modules=[{"module_name": "greeter"}])

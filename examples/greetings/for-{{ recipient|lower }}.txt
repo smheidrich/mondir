@@ -1,0 +1,5 @@
+{% thisfile for * in greetings -%}
+Greetings, {{ recipient }}!
+
+Kind regards
+{{ sender }}

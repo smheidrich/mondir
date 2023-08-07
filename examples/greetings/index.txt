@@ -1,0 +1,8 @@
+{% thisfile with %}
+  {% filename -%}list-of-{{ greetings|length }}-greetings.txt{%- endfilename %}
+{% endthisfile -%}
+I have greetings for:
+
+{% for data in greetings -%}
+- {{ data.recipient }}
+{% endfor %}

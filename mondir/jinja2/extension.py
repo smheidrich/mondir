@@ -60,7 +60,7 @@ class RenderingFile:
 
 
 @dataclass
-class FisyteData:
+class MondirData:
     # parsing
     file_contents_receptacles: list[list[Node]] = field(default_factory=list)
     # note: unlike the other two top-level callback node holders below
@@ -95,12 +95,12 @@ class FisyteData:
 
 # make Mypy happy:
 class ExtendedEnvironment(Environment):
-    fisyte: FisyteData
+    mondir: MondirData
 
 
-class FisyteStateExtension(Extension):
+class MondirStateExtension(Extension):
     """
-    Jinja2 extension that needs access to fisyte state.
+    Jinja2 extension that needs access to mondir state.
     """
 
     # make Mypy happy:
@@ -110,18 +110,18 @@ class FisyteStateExtension(Extension):
         super().__init__(environment)
 
         # storage of things we parse from extension blocks
-        environment.extend(fisyte=FisyteData())
+        environment.extend(mondir=MondirData())
 
     @property
-    def state(self) -> FisyteData:
+    def state(self) -> MondirData:
         """
-        Shortcut to access fisyte state (shorter than `environment.fisyte`).
+        Shortcut to access mondir state (shorter than `environment.mondir`).
         """
-        return self.environment.fisyte
+        return self.environment.mondir
 
 
-class FisyteStateWithTagStackExtension(
-    SingleTagExtension, FisyteStateExtension
+class MondirStateWithTagStackExtension(
+    SingleTagExtension, MondirStateExtension
 ):
     def parse(self, parser: Parser) -> Node | list[Node]:
         self.state.tag_stack.append(self.tag)
@@ -186,7 +186,7 @@ class FileCallbackNodes(PseudoList):
         self.meta.extend(iterable)
 
 
-class ExtensionWithFileCallbacks(FisyteStateExtension):
+class ExtensionWithFileCallbacks(MondirStateExtension):
     """
     Base for extensions that need to create call blocks for setting file data.
     """
@@ -303,7 +303,7 @@ class ExtensionWithFileCallbacks(FisyteStateExtension):
 
 
 class ThisfileExtension(
-    ExtensionWithFileCallbacks, FisyteStateWithTagStackExtension
+    ExtensionWithFileCallbacks, MondirStateWithTagStackExtension
 ):
     tag = "thisfile"
 
@@ -409,7 +409,7 @@ class ActualFilenameExtension(ExtensionWithFileCallbacks, SingleTagExtension):
     def preprocess(self, source, name, filename=None) -> str:
         if filename is None:
             raise ValueError(
-                "for now, fisyte only works with templates that have filenames"
+                "for now, mondir only works with templates that have filenames"
             )
         # put filename tag at the beginning so it can be tokenized, parsed, and
         # processed as a Jinja template:
@@ -439,7 +439,7 @@ class ActualFilenameExtension(ExtensionWithFileCallbacks, SingleTagExtension):
 
 
 class FilenameExtension(
-    ExtensionWithFileCallbacks, FisyteStateWithTagStackExtension
+    ExtensionWithFileCallbacks, MondirStateWithTagStackExtension
 ):
     """
     Allows setting the desired output filename template.
@@ -481,7 +481,7 @@ class FilenameExtension(
 
 
 class ContentExtension(
-    ExtensionWithFileCallbacks, FisyteStateWithTagStackExtension
+    ExtensionWithFileCallbacks, MondirStateWithTagStackExtension
 ):
     """
     Allows overriding the desired output content template.
@@ -506,7 +506,7 @@ class ContentExtension(
         return self.make_file_contents_call_block(body)
 
 
-class DirLevelExtension(FisyteStateWithTagStackExtension):
+class DirLevelExtension(MondirStateWithTagStackExtension):
     tag = "dirlevel"
 
     def parse_own_tag(self, parser: Parser, lineno: int) -> Node | list[Node]:

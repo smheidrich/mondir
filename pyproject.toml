@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "fisyte"
+name = "mondir"
 version = "0.1.0"
-description = "Filesystem-level templating using Jinja2"
+description = "Directory/filesystem-level templating using Jinja2"
 authors = ["smheidrich <smheidrich@weltenfunktion.de>"]
 readme = "README.md"
 

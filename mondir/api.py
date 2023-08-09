@@ -5,7 +5,7 @@ from typing import Any, cast
 
 from jinja2 import BaseLoader, Environment, FileSystemLoader
 
-from fisyte.jinja2.extension import ExtendedEnvironment, FisyteData, extensions
+from mondir.jinja2.extension import ExtendedEnvironment, MondirData, extensions
 
 
 class DirTemplate:
@@ -105,7 +105,7 @@ class DirTemplate:
             for (
                 filename,
                 content,
-            ) in self.environment.fisyte.rendered_files_map.items():
+            ) in self.environment.mondir.rendered_files_map.items():
                 output_path = output_dir_path / Path(filename).relative_to(
                     self.templates_dir_path
                 )
@@ -114,4 +114,4 @@ class DirTemplate:
             # we have to wipe this manually because AFAIK Jinja provides
             # nothing in the way of per-render state => easiest to do it
             # ourselves; this is also what makes this not thread-safe...
-            self.environment.fisyte = FisyteData()
+            self.environment.mondir = MondirData()

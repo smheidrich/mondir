@@ -14,24 +14,24 @@ from jinja2.nodes import (
     TemplateData,
 )
 
-from fisyte.jinja2.extension import (
+from mondir.jinja2.extension import (
     ActualFilenameExtension,
     DirLevelExtension,
     FileCallbackNodes,
-    FisyteData,
+    MondirData,
     ThisfileExtension,
     extensions,
 )
-from fisyte.jinja2.loaders import FilenameDictLoader
+from mondir.jinja2.loaders import FilenameDictLoader
 
 from ..utils.parametrization import autodetect_parameters, case
 
 
 def filename_dict_loader_environment(mapping, extensions=extensions):
     """
-    Create a fisyte environment using the `FilenameDictLoader` template loader.
+    Create a mondir environment using the `FilenameDictLoader` template loader.
 
-    Defaults to using all fisyte extensions loaded but this can be overridden
+    Defaults to using all mondir extensions loaded but this can be overridden
     via the `extensions` parameter.
     """
     loader = FilenameDictLoader(mapping)
@@ -59,7 +59,7 @@ def test_parsing_and_storing_ast():
     t = environment.get_template("myfile")
     rendered = t.render()
     # check
-    assert t.environment.fisyte == FisyteData(
+    assert t.environment.mondir == MondirData(
         file_contents_receptacles=[[]],
         dir_level_body=None,
         standalone_thisfile=[
@@ -80,7 +80,7 @@ def test_parsing_and_storing_ast():
                             CallBlock(
                                 Call(
                                     ExtensionAttribute(
-                                        "fisyte.jinja2.extension."
+                                        "mondir.jinja2.extension."
                                         "ThisfileExtension",
                                         "start_rendering_file",
                                     ),
@@ -98,7 +98,7 @@ def test_parsing_and_storing_ast():
                                 CallBlock(
                                     Call(
                                         ExtensionAttribute(
-                                            "fisyte.jinja2.extension."
+                                            "mondir.jinja2.extension."
                                             "ThisfileExtension",
                                             "set_fallback_filename",
                                         ),
@@ -116,7 +116,7 @@ def test_parsing_and_storing_ast():
                                 CallBlock(
                                     Call(
                                         ExtensionAttribute(
-                                            "fisyte.jinja2.extension."
+                                            "mondir.jinja2.extension."
                                             "ThisfileExtension",
                                             "set_fallback_file_contents",
                                         ),
@@ -133,7 +133,7 @@ def test_parsing_and_storing_ast():
                             CallBlock(
                                 Call(
                                     ExtensionAttribute(
-                                        "fisyte.jinja2.extension."
+                                        "mondir.jinja2.extension."
                                         "ThisfileExtension",
                                         "done_rendering_file",
                                     ),
@@ -287,7 +287,7 @@ def test_render_different_ways(template_filename, source):
     t = environment.get_template(template_filename)
     t.render()
     # check
-    assert t.environment.fisyte.rendered_files_map == {
+    assert t.environment.mondir.rendered_files_map == {
         "a.txt": "x: a",
         "b.txt": "x: b",
     }
@@ -304,7 +304,7 @@ def test_render_static():
     t = environment.get_template("myfile")
     rendered = t.render()
     # check
-    assert t.environment.fisyte.rendered_files_map == {"myfile": "x: a"}
+    assert t.environment.mondir.rendered_files_map == {"myfile": "x: a"}
     assert rendered == dedent(
         """\
         if you see this text, you might be using this library wrong:
@@ -333,7 +333,7 @@ def test_render_filename_using_with():
     t = environment.get_template("myfile")
     rendered = t.render()
     # check
-    assert t.environment.fisyte.rendered_files_map == {"fn": "hello"}
+    assert t.environment.mondir.rendered_files_map == {"fn": "hello"}
     assert rendered == dedent(
         """\
         if you see this text, you might be using this library wrong:
@@ -361,7 +361,7 @@ def test_empty_dirlevel_means_no_output():
     t = environment.get_template("myfile")
     t.render()
     # check
-    assert t.environment.fisyte.rendered_files_map == {}
+    assert t.environment.mondir.rendered_files_map == {}
 
 
 def test_standalone_filename():
@@ -378,7 +378,7 @@ def test_standalone_filename():
     t = environment.get_template("myfile")
     t.render()
     # check
-    assert t.environment.fisyte.rendered_files_map == {"differentname": "x: a"}
+    assert t.environment.mondir.rendered_files_map == {"differentname": "x: a"}
 
 
 def test_filename_keeps_preceding_path_intact():
@@ -392,7 +392,7 @@ def test_filename_keeps_preceding_path_intact():
     t = environment.get_template("mydir/myfile")
     t.render()
     # check
-    assert t.environment.fisyte.rendered_files_map == {
+    assert t.environment.mondir.rendered_files_map == {
         "mydir/differentname": "hello"
     }
 
@@ -408,7 +408,7 @@ def test_actual_filename_keeps_preceding_path_intact():
     t = environment.get_template("mydir/myfile")
     t.render()
     # check
-    assert t.environment.fisyte.rendered_files_map == {"mydir/myfile": "hello"}
+    assert t.environment.mondir.rendered_files_map == {"mydir/myfile": "hello"}
 
 
 @autodetect_parameters()

@@ -3,15 +3,15 @@ from importlib import resources
 
 from parametrization import pytest
 
-from fisyte.api import DirTemplate
+from mondir.api import DirTemplate
 
-package_name = "fisyte"
+package_name = "mondir"
 
 
 @pytest.fixture(scope="module")
 def example1_dir():
     with resources.as_file(
-        resources.files("fisyte_resources_anchor") / "examples/greetings"
+        resources.files("mondir_resources_anchor") / "examples/greetings"
     ) as p:
         yield p
 

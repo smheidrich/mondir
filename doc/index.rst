@@ -17,7 +17,7 @@ Table of contents
 
    installation
    tutorial
-   reference
+   api
    templates
 
 

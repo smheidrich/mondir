@@ -5,8 +5,7 @@ Tutorial
 ========
 
 This tutorial covers Mondir's basic functionality. For reference-style
-documentation on *all* features, see :ref:`reference:API reference` and
-:ref:`templates:Template reference` instead.
+documentation on *all* features, see :doc:`api` and :doc:`templates` instead.
 
 Example setup and data
 ----------------------

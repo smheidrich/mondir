@@ -20,7 +20,7 @@ place a file named `greeting-for-{{ name }}.txt` in a directory and fill it
 with:
 
 ```jinja
-{% thisfile for name in names %}
+{% thisfile for name in names -%}
 Hello {{ name }}!
 ```
 

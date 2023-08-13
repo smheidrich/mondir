@@ -106,3 +106,6 @@ intersphinx_mapping = {
 # reason while `py:obj` doesn't mark methods and functions with `()` like it
 # does if the role is specified explicitly. so better to just leave it off.
 default_role = "any"
+
+# Prefix autosectionlabels with document names
+autosectionlabel_prefix_document = True

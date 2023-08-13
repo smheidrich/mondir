@@ -16,7 +16,7 @@ Table of contents
    :caption: Contents:
 
    installation
-   usage
+   tutorial
    reference
    templates
 

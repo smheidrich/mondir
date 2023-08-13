@@ -5,7 +5,7 @@ from jinja2 import BaseLoader, Environment, TemplateNotFound
 
 class FilenameDictLoader(BaseLoader):
     """
-    Like Jinja's :py:any:`DictLoader`, but returns dict keys as filenames.
+    Like :class:`~jinja2.class.DictLoader`, but returns dict keys as filenames.
 
     Mainly useful for testing.
     """

@@ -18,16 +18,19 @@ class DirTemplate:
         templates_dir: Path of the directory containing the source templates.
         overwrite: Whether to silently overwrite output files if they already
             exist instead of the default behavior of raising an error.
-        loader_factory: Custom `BaseLoader`-returning callable, if you don't
-            want to use Jinja's `FileSystemLoader` for loading templates or
-            want to intercept its instantiation. The returned loader must
-            support both `list_templates` and `get_template`.
-        environment_factory: Custom `Environment`-returning callable, if you
-            don't want to use Jinja's regular `Environment` or want to
-            intercept its instantiation. Will be given a list of extensions
-            required for directory templating, the loader, and
-            `keep_trailing_newline=False` as a more sensible default than
-            Jinja's.
+        loader_factory: Custom :class:`~jinja2.BaseLoader`-returning callable,
+            if you don't want to use Jinja's :class:`~jinja2.FileSystemLoader`
+            for loading templates or want to intercept its instantiation. The
+            returned loader must support both
+            :meth:`~jinja2.BaseLoader.list_templates` and
+            :meth:`~jinja2.BaseLoader.get_source`.
+        environment_factory: Custom :class:`~jinja2.Environment`-returning
+            callable, if you don't want to use Jinja's regular
+            :class:`~jinja2.Environment` or want to intercept its
+            instantiation. Will be given a list of extensions required for
+            directory templating, the loader, and
+            :attr:`~jinja2.Environment.keep_trailing_newline` is ``False`` as a
+            more sensible default than Jinja's.
     """
 
     def __init__(
@@ -73,9 +76,11 @@ class DirTemplate:
             output_dir: Path of the directory into which to place the output
                 files.
             *args: If used, must contain a single mapping of template
-                parameters (like Jinja's own `Template.render`).
+                parameters (like Jinja's own :meth:`Template.render()
+                <jinja2.Template.render>`).
             **kwargs: Values for template parameters (like Jinja's own
-                `Template.render`). Mutually exclusive with usage of `*args`.
+                :meth:`Template.render() <jinja2.Template.render>`). Mutually
+                exclusive with usage of ``*args``.
         """
         # normalize args
         output_dir_path = (

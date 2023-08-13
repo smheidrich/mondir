@@ -19,7 +19,7 @@ For instance, to output a file for each entry in a list of names, you could
 place a file named `greeting-for-{{ name }}.txt` in a directory and fill it
 with:
 
-```python
+```jinja
 {% thisfile for name in names %}
 Hello {{ name }}!
 ```

@@ -1,7 +1,7 @@
 from filecmp import dircmp
 from importlib import resources
 
-from parametrization import pytest
+import pytest
 
 from mondir.api import DirTemplate
 

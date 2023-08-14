@@ -1,12 +1,17 @@
 # Mondir
 
+[![pipeline status](https://gitlab.com/smheidrich/mondir/badges/main/pipeline.svg?style=flat-square)](https://gitlab.com/smheidrich/mondir/-/commits/main)
+[![docs](https://img.shields.io/badge/docs-online-brightgreen?style=flat-square)](https://smheidrich.gitlab.io/mondir/)
+[![pypi](https://img.shields.io/pypi/v/mondir)](https://pypi.org/project/mondir/)
+[![supported python versions](https://img.shields.io/pypi/pyversions/mondir)](https://pypi.org/project/mondir/)
+
 [Jinja2](https://jinja.palletsprojects.com/) templates for whole directories /
 multiple files.
 
 ## Installation
 
-```console
-$ pip3 install mondir
+```bash
+pip3 install mondir
 ```
 
 ## Usage

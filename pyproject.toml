@@ -4,6 +4,10 @@ version = "0.1.1"
 description = "Directory/filesystem-level templating using Jinja2"
 authors = ["smheidrich <smheidrich@weltenfunktion.de>"]
 readme = "README.md"
+homepage = "https://smheidrich.gitlab.io/mondir/"
+repository = "https://gitlab.com/smheidrich/mondir"
+documentation = "https://smheidrich.gitlab.io/mondir/"
+license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.12"

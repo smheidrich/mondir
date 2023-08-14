@@ -17,8 +17,8 @@ pip3 install mondir
 ## Usage
 
 Files in the input template directory can use both normal Jinja syntax and
-[syntax extensions](doc/templates.rst) introduced by Mondir. File and directory
-names can contain Jinja syntax, too.
+[syntax extensions](https://smheidrich.gitlab.io/mondir/templates.html#syntax-extensions)
+introduced by Mondir. File and directory names can contain Jinja syntax, too.
 
 For instance, to output a file for each entry in a list of names, you could
 place a file named `greeting-for-{{ name }}.txt` in a directory and fill it
@@ -37,7 +37,8 @@ template = DirTemplate("template_input_dir")
 template.render("output_dir", names=["John", "Jane", "Alice", "Bob"])
 ```
 
-A [full tutorial](doc/tutorial.rst) is available in the docs.
+A [full tutorial](https://smheidrich.gitlab.io/mondir/tutorial.html) is
+available in the docs.
 
 ## Similar projects
 

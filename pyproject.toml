@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mondir"
-version = "0.1.2"
+version = "0.1.3"
 description = "Directory/filesystem-level templating using Jinja2"
 authors = ["smheidrich <smheidrich@weltenfunktion.de>"]
 readme = "README.md"

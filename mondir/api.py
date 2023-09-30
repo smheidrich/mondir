@@ -5,7 +5,8 @@ from typing import Any, cast
 
 from jinja2 import BaseLoader, Environment, FileSystemLoader
 
-from mondir.jinja2.extension import ExtendedEnvironment, MondirData, extensions
+from .jinja2.extension import ExtendedEnvironment, MondirData, extensions
+from .utils.path import mkdir_parents_up_to
 
 
 class DirTemplate:
@@ -114,6 +115,7 @@ class DirTemplate:
                 output_path = output_dir_path / Path(filename).relative_to(
                     self.templates_dir_path
                 )
+                mkdir_parents_up_to(output_path, output_dir_path)
                 with output_path.open("w" if self.overwrite else "x") as o:
                     o.write(content)
             # we have to wipe this manually because AFAIK Jinja provides

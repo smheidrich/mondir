@@ -115,7 +115,9 @@ class DirTemplate:
                 output_path = output_dir_path / Path(filename).relative_to(
                     self.templates_dir_path
                 )
-                mkdir_parents_up_to(output_path, output_dir_path)
+                mkdir_parents_up_to(
+                    output_path, output_dir_path, exist_ok=self.overwrite
+                )
                 with output_path.open("w" if self.overwrite else "x") as o:
                     o.write(content)
             # we have to wipe this manually because AFAIK Jinja provides

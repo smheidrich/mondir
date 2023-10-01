@@ -78,6 +78,26 @@ def test_nested_template_happy_path(
     assert comparison_result.funny_files == []
 
 
+def test_nested_template_overwrite_happy_path(
+    example_nested_dir, example_nested_expected_outputs_dir, tmp_path
+):
+    DirTemplate(example_nested_dir).render(tmp_path)
+    DirTemplate(example_nested_dir, overwrite=True).render(tmp_path)
+    comparison_result = dircmp(tmp_path, example_nested_expected_outputs_dir)
+    assert comparison_result.left_only == []
+    assert comparison_result.right_only == []
+    assert comparison_result.diff_files == []
+    assert comparison_result.funny_files == []
+
+
+def test_nested_template_overwrite_fails_if_not_set(
+    example_nested_dir, example_nested_expected_outputs_dir, tmp_path
+):
+    DirTemplate(example_nested_dir).render(tmp_path)
+    with pytest.raises(FileExistsError):
+        DirTemplate(example_nested_dir).render(tmp_path)
+
+
 def test_nested_template_target_dir_does_not_exist(
     example_nested_dir, example_nested_expected_outputs_dir, tmp_path
 ):

@@ -47,6 +47,12 @@ available in the docs.
 - [dirtemplate](https://pypi.org/project/dirtemplate/): Also the same idea
   *and* also uses Jinja2. But I only found out about it after I wrote mine and
   now the sunk cost fallacy compels me to stick with it no matter what.
+- [yamldirs](https://pypi.org/project/yamldirs/) creates whole directories from
+  YAML specs. While working on Mondir, I considered having a similar file
+  format as an intermediate step between the templates and the final output
+  (which would have made a couple of things easier to implement and would have
+  had the benefit of making the output of Jinja's regular `render()`
+  meaningful), but dropped the idea over performance concerns.
 
 ## Name explanation
 

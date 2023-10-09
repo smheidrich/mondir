@@ -3,7 +3,7 @@ from importlib import resources
 
 import pytest
 
-from mondir.api import DirTemplate
+from mondir.api import DirTemplate, TemplateOutputError
 
 package_name = "mondir"
 
@@ -44,8 +44,9 @@ def test_basic_rendering(
 def test_overwrite_protection(example1_dir, tmp_path):
     t = DirTemplate(example1_dir)
     t.render(tmp_path, greetings=[{"sender": "John"}])
-    with pytest.raises(FileExistsError):
+    with pytest.raises(TemplateOutputError) as exc_info:
         t.render(tmp_path, greetings=[{"sender": "John"}])
+    assert isinstance(exc_info.value.__cause__, FileExistsError)
 
 
 # regression test for https://gitlab.com/smheidrich/mondir/-/issues/3
@@ -94,13 +95,15 @@ def test_nested_template_overwrite_fails_if_not_set(
     example_nested_dir, example_nested_expected_outputs_dir, tmp_path
 ):
     DirTemplate(example_nested_dir).render(tmp_path)
-    with pytest.raises(FileExistsError):
+    with pytest.raises(TemplateOutputError) as exc_info:
         DirTemplate(example_nested_dir).render(tmp_path)
+    assert isinstance(exc_info.value.__cause__, FileExistsError)
 
 
 def test_nested_template_target_dir_does_not_exist(
     example_nested_dir, example_nested_expected_outputs_dir, tmp_path
 ):
     t = DirTemplate(example_nested_dir)
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(TemplateOutputError) as exc_info:
         t.render(tmp_path / "target")
+    assert isinstance(exc_info.value.__cause__, FileNotFoundError)

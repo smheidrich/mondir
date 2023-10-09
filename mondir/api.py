@@ -9,6 +9,24 @@ from .jinja2.extension import ExtendedEnvironment, MondirData, extensions
 from .utils.path import mkdir_parents_up_to
 
 
+class TemplateLoadingError(Exception):
+    """
+    Raised when a particular template file could not be loaded.
+    """
+
+
+class TemplateRenderingError(Exception):
+    """
+    Raised when a particular template could not be rendered.
+    """
+
+
+class TemplateOutputError(Exception):
+    """
+    Raised when a rendered template could not be written to disk.
+    """
+
+
 class DirTemplate:
     """
     A template encompassing a whole directory and its contents, recursively.
@@ -82,6 +100,12 @@ class DirTemplate:
             **kwargs: Values for template parameters (like Jinja's own
                 :meth:`Template.render() <jinja2.Template.render>`). Mutually
                 exclusive with usage of ``*args``.
+
+        Raises:
+            TemplateLoadingError: If the template could not be loaded.
+            TemplateRenderingError: If the template could not be rendered.
+            TemplateOutputError: If the rendered template could not be output
+                (written to disk).
         """
         # normalize args
         output_dir_path = (
@@ -106,20 +130,37 @@ class DirTemplate:
             template_params = kwargs
         # /normalize args
         for template_name in self.loader.list_templates():
-            template = self.environment.get_template(template_name)
-            template.render(**template_params)
-            for (
-                filename,
-                content,
-            ) in self.environment.mondir.rendered_files_map.items():
-                output_path = output_dir_path / Path(filename).relative_to(
-                    self.templates_dir_path
-                )
-                mkdir_parents_up_to(
-                    output_path, output_dir_path, exist_ok=self.overwrite
-                )
-                with output_path.open("w" if self.overwrite else "x") as o:
-                    o.write(content)
+            try:
+                template = self.environment.get_template(template_name)
+            except Exception as e:
+                # just b/c Jinja doesn't have dbg logs or nice exceptions...
+                raise TemplateLoadingError(
+                    f"error loading template {template_name!r}"
+                ) from e
+            try:
+                template.render(**template_params)
+            except Exception as e:
+                raise TemplateRenderingError(
+                    f"error rendering template {template_name!r} with params "
+                    f"{template_params!r}"
+                ) from e
+            try:
+                for (
+                    filename,
+                    content,
+                ) in self.environment.mondir.rendered_files_map.items():
+                    output_path = output_dir_path / Path(filename).relative_to(
+                        self.templates_dir_path
+                    )
+                    mkdir_parents_up_to(
+                        output_path, output_dir_path, exist_ok=self.overwrite
+                    )
+                    with output_path.open("w" if self.overwrite else "x") as o:
+                        o.write(content)
+            except Exception as e:
+                raise TemplateOutputError(
+                    f"error writing output of template {template_name!r}"
+                ) from e
             # we have to wipe this manually because AFAIK Jinja provides
             # nothing in the way of per-render state => easiest to do it
             # ourselves; this is also what makes this not thread-safe...

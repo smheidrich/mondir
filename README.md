@@ -66,3 +66,12 @@ The first translation of *temple*
 [on Wiktionary](https://en.wiktionary.org/wiki/temple#Translations) that also
 contains the fragment *dir* (for *directory*) is the Bengali word *mondir*.
 So that's it.
+
+## Changelog
+
+### 0.2.0
+
+- `DirTemplate.render()` now raises newly introduced exceptions
+  `TemplateLoadingError`, `TemplateRenderingError`, and `TemplateOutputError`
+  instead of merely passing along exceptions from Jinja/Python's `os`, allowing
+  users to see which files/params were responsible.
